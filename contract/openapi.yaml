@@ -1,0 +1,120 @@
+openapi: 3.1.0
+info:
+  title: Lineari API
+  version: 0.1.0
+  description: This serves as the Lineari employee hierarchy API. This file is the source of truth:
+    the fastAPI implementation and react client are built to match this.
+  servers:
+    - url: http://localhost:8000
+      description: local dev
+    - name: Employees
+    - name: Hierarchy
+    - name: System
+
+  paths:
+  # this is the health check endpoint
+    /health:
+      get:
+        tags: [System]
+        operationId: getHealth
+        summary: Service and db health check
+        responses:
+          "200":
+            description: Service health is up
+            content:
+              application/json:
+                schema:
+                  type: object
+                  required: [status]
+                  properties:
+                    status:
+                      type: string
+                      enum: [ok]
+
+  # setting up the employee endpoint for data so frontend matches this
+  /employees:
+    get:
+      tags: [Employees]
+      operationId: listEmployees
+      summary: Lists employees by searching, filtering, sorting and pagination
+      parameters:
+        - name: search
+          in: query
+          description: Case insensitve match on an employees name, surname, email, employee no or role
+          schema: { type: string }
+        - name: role
+          in: query
+          schema: { type: string }
+        - name: manager_id
+          in: query
+          description: Only employees reporting directly to this manager
+          schema: { type: string, format: uuid }
+        - name: has_manager
+          in: query
+          description: Set to false to list employees with no managers
+          schema: { type: boolean }
+        - name: salary_min
+          in: query
+          schema: { type: number }
+        - name: salary_max
+          in: query
+          schema: { type: number }
+        - name: birth_date_from
+          in: query
+          schema: { type: string, format: date }
+        - name: birth_date_to
+          in: query
+          schema: { type: string, format: date }
+        - name: sort_by
+          in: query
+          schema:
+            type: string
+            enum: [name, surname, email, birth_date, employee_number, salary, role, manager]
+            default: surname
+        - name: order
+          in: query
+          schema:
+            type: string
+            enum: [asc, desc]
+            default: asc
+        - name: page
+          in: query
+          schema: { type: integer, minimum: 1, default: 1 }
+        - name: page_size
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 100, default: 25 }
+      responses:
+        "200":
+          description: A page of employees
+          content: 
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EmployeeList"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+    post:
+      tags: [Employees]
+      operationId: createEmployee
+      summary: Create a new employee
+      requestBody:
+        required: true
+        content: 
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EmployeeCreate"
+      responses:
+        "201":
+          description: Employee successfully created
+          content:
+            application/json:
+              schema: 
+                $ref: "#/components/schemas/Employee"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+        
+
+        
