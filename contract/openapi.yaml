@@ -115,6 +115,287 @@ info:
           $ref: "#/components/responses/Conflict"
         "422":
           $ref: "#/components/responses/ValidationError"
-        
 
-        
+  # endpoint for getting 1 employee
+  /employees/{employee_id}:
+    parameters:
+      - $ref: "#/components/parameters/EmployeeId"
+    get:
+      tags: [Employees]
+      operationId: getEmployee
+      summary: Get one employee
+      responses:
+      "200":
+        description: The employee
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Employee"
+      "404":
+        $ref: "#/components/responses/NotFound"
+    patch:
+      tags: [Employees]
+      operationId: updateEmployee
+      summary: Update an employee and change/clearing current manager
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EmployeeUpdate"
+      responses:
+        "200":
+          description: Employee successfully updated
+          content:
+            application/json:
+              schema: 
+                $ref: "#/components/schemas/Employee"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+    delete:
+      tags: [Employees]
+      operationId: deleteEmployee
+      summary: Delete an employee
+      description: >
+        if the employee has direct reports, the request fails wiith 409 unless reassign_reports_to is provided.
+         Pass the id of the new manager, or omit it and set reassign_to_none to true to leave the reports without a manager.
+      parameters:
+        - name: reassign_reports_to
+          in: query
+          description: Move this employee's direct reports to this manager
+          schema: { type: string, format: uuid }
+        - name: reassign_to_none
+          in: query
+          description: Leave this employee's direct reports without a manager
+          schema: { type: boolean, default: false }
+      responses:
+        "204":
+          description: Employee successfully deleted
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+
+  #top down endpoint from root big boss to employee
+  /employees/{employee_id}/ancestors:
+  parameters:
+    - $ref: "#/components/parameters/EmployeeId"
+  get:
+    tags: [Hierarchy]
+    operationId: getEmployeeAncestors
+    summary: Chain of managers above said employee, from the top of the tree down
+    description: Used to expand the tree to a search result
+    responses:
+      "200":
+        description: Ordered list of ancestors, root first and excluding the employee
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                $ref: "#/components/schemas/Employee"
+      "404":
+        $ref: "#/components/responses/NotFound"
+
+  #hierachy endpoint 
+  /hierarchy:
+    get:
+      tags: [Hierarchy]
+      operationId: getHierarchy
+      summary: The organization as a forest of nested nodes
+      description: >
+        Returns every employee with no manager as a root, each with nested direct
+        reports. Use root_id to return a single subtree.
+      parameters:
+        - name: root_id
+          in: query
+          schema: { type: string, format: uuid }
+        - name: max_depth
+          in: query
+          description: Limit how many levels below each root are returned
+          schema: { type: integer, minimum: 0 }
+      responses:
+        "200":
+          description: The hierarchy
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/HierarchyNode"
+        "404":
+          $ref: "#/components/responses/NotFound"
+ 
+components:
+  parameters:
+    EmployeeId:
+      name: employee_id
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+ 
+  schemas:
+    EmployeeBase:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+        surname:
+          type: string
+          minLength: 1
+          maxLength: 100
+        email:
+          type: string
+          format: email
+          description: Used to build the Gravatar avatar
+        birth_date:
+          type: string
+          format: date
+        employee_number:
+          type: string
+          minLength: 1
+          maxLength: 32
+          description: Unique across the organization
+        salary:
+          type: number
+          minimum: 0
+          multipleOf: 0.01
+        role:
+          type: string
+          minLength: 1
+          maxLength: 100
+        manager_id:
+          type: [string, "null"]
+          format: uuid
+          description: Reporting line manager. Null means no manager. Cannot equal the employee's own id or create a cycle.
+ 
+    EmployeeCreate:
+      allOf:
+        - $ref: "#/components/schemas/EmployeeBase"
+        - type: object
+          required: [name, surname, email, birth_date, employee_number, salary, role]
+ 
+    EmployeeUpdate:
+      description: Any subset of employee fields. Send manager_id as null to remove the manager.
+      allOf:
+        - $ref: "#/components/schemas/EmployeeBase"
+        - type: object
+          minProperties: 1
+ 
+    Employee:
+      allOf:
+        - $ref: "#/components/schemas/EmployeeBase"
+        - type: object
+          required:
+            [id, name, surname, email, birth_date, employee_number, salary, role, manager_id, avatar_url, direct_report_count, created_at, updated_at]
+          properties:
+            id:
+              type: string
+              format: uuid
+            avatar_url:
+              type: string
+              format: uri
+              description: Gravatar URL derived from the email
+            manager_name:
+              type: [string, "null"]
+              description: Convenience field for table display
+            direct_report_count:
+              type: integer
+              minimum: 0
+            created_at:
+              type: string
+              format: date-time
+            updated_at:
+              type: string
+              format: date-time
+ 
+    EmployeeList:
+      type: object
+      required: [items, total, page, page_size]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/Employee"
+        total:
+          type: integer
+          minimum: 0
+        page:
+          type: integer
+          minimum: 1
+        page_size:
+          type: integer
+          minimum: 1
+ 
+    HierarchyNode:
+      type: object
+      required: [id, name, surname, role, avatar_url, direct_report_count, children]
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        surname:
+          type: string
+        role:
+          type: string
+        avatar_url:
+          type: string
+          format: uri
+        direct_report_count:
+          type: integer
+          minimum: 0
+        children:
+          type: array
+          items:
+            $ref: "#/components/schemas/HierarchyNode"
+ 
+    Error:
+      type: object
+      required: [code, message]
+      properties:
+        code:
+          type: string
+          enum:
+            - not_found
+            - validation_error
+            - duplicate_employee_number
+            - duplicate_email
+            - self_manager
+            - circular_reporting_line
+            - has_direct_reports
+        message:
+          type: string
+        details:
+          type: object
+          additionalProperties: true
+ 
+  responses:
+    NotFound:
+      description: The employee, or a referenced manager, does not exist
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    Conflict:
+      description: Duplicate employee number or email, or deleting a manager who still has direct reports
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    ValidationError:
+      description: Invalid input, including making someone their own manager or creating a circular reporting line
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+ 
