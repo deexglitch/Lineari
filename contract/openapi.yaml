@@ -2,11 +2,13 @@ openapi: 3.1.0
 info:
   title: Lineari API
   version: 0.1.0
-  description: This serves as the Lineari employee hierarchy API. This file is the source of truth:
+  description: >
+    This serves as the Lineari employee hierarchy API. This file is the source of truth:
     the fastAPI implementation and react client are built to match this.
   servers:
     - url: http://localhost:8000
       description: local dev
+  tags:
     - name: Employees
     - name: Hierarchy
     - name: System
@@ -125,14 +127,14 @@ info:
       operationId: getEmployee
       summary: Get one employee
       responses:
-      "200":
-        description: The employee
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/Employee"
-      "404":
-        $ref: "#/components/responses/NotFound"
+        "200":
+          description: The employee
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Employee"
+        "404":
+          $ref: "#/components/responses/NotFound"
     patch:
       tags: [Employees]
       operationId: updateEmployee
@@ -184,24 +186,24 @@ info:
 
   #top down endpoint from root big boss to employee
   /employees/{employee_id}/ancestors:
-  parameters:
-    - $ref: "#/components/parameters/EmployeeId"
-  get:
-    tags: [Hierarchy]
-    operationId: getEmployeeAncestors
-    summary: Chain of managers above said employee, from the top of the tree down
-    description: Used to expand the tree to a search result
-    responses:
-      "200":
-        description: Ordered list of ancestors, root first and excluding the employee
-        content:
-          application/json:
-            schema:
-              type: array
-              items:
-                $ref: "#/components/schemas/Employee"
-      "404":
-        $ref: "#/components/responses/NotFound"
+    parameters:
+      - $ref: "#/components/parameters/EmployeeId"
+    get:
+      tags: [Hierarchy]
+      operationId: getEmployeeAncestors
+      summary: Chain of managers above said employee, from the top of the tree down
+      description: Used to expand the tree to a search result
+      responses:
+        "200":
+          description: Ordered list of ancestors, root first and excluding the employee
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Employee"
+        "404":
+          $ref: "#/components/responses/NotFound"
 
   #hierachy endpoint 
   /hierarchy:
