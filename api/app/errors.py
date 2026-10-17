@@ -1,7 +1,7 @@
 # returns errors from contract {code, msg } fromat instead of fastAPIs default
 
 
-from fastapi import fastAPI, Request
+from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 

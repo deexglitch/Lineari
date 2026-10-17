@@ -6,7 +6,7 @@ from typing import Annotated
 from uuid import UUID
 
 from pydantic import (
-    BaseMode,
+    BaseModel,
     ConfigDict,
     EmailStr,
     Field,
@@ -35,7 +35,7 @@ class EmployeeCreate(BaseModel):
     email: EmailStr
     birth_date: date
     emp_number: EmployeeNumber
-    Salary: Salary
+    salary: Salary
     role: ShortText
     manager_id: UUID | None = None
 
@@ -52,7 +52,7 @@ class EmployeeUpdate(BaseModel):
     email: EmailStr | None = None
     birth_date: date | None = None
     emp_number: EmployeeNumber | None = None
-    Salary: Salary | None = None
+    salary: Salary | None = None
     role: ShortText | None = None
     manager_id: UUID | None = None
 
@@ -63,37 +63,37 @@ class EmployeeUpdate(BaseModel):
     def check_fields(self):
         if not self.model_fields_set:
             raise ValueError("Please change at least one field to update")
-        for field in self.mode_fields_set - {"manager_id"}:
+        for field in self.model_fields_set - {"manager_id"}:
             if getattr(self, field) is None:
                 raise ValueError(f"{field} cannot be null. Please enter a value")
         return self
 
 
-    #actual employee details
-    class EmployeeOut(BaseModel):
-        id: UUID
-        name: str
-        surname: str
-        email: str
-        birth_date: date
-        emp_number: str
-        salary: Decimal
-        role: str
-        manager_id: UUID | None
-        manager_name: str | None
-        avatar_url: str
-        direct_report_count: int
-        created_at: datetime
-        updated_at: datetime
+#actual employee details
+class EmployeeOut(BaseModel):
+    id: UUID
+    name: str
+    surname: str
+    email: str
+    birth_date: date
+    emp_number: str
+    salary: Decimal
+    role: str
+    manager_id: UUID | None
+    manager_name: str | None
+    avatar_url: str
+    direct_report_count: int
+    created_at: datetime
+    updated_at: datetime
 
-        #helper to cast the decimal to a float value
-        @field_serializer("salary")
-        def serialize_salary(self, value: Decimal) -> float:
-            return float(value)
+    #helper to cast the decimal to a float value
+    @field_serializer("salary")
+    def serialize_salary(self, value: Decimal) -> float:
+        return float(value)
 
 
-    class EmployeeList(BaseModel):
-        items: list[EmployeeOut]
-        total: int
-        pages: int
-        page_size: int
+class EmployeeList(BaseModel):
+    items: list[EmployeeOut]
+    total: int
+    page: int
+    page_size: int
