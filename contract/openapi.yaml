@@ -261,7 +261,7 @@ components:
         birth_date:
           type: string
           format: date
-        employee_number:
+        emp_number:
           type: string
           minLength: 1
           maxLength: 32
