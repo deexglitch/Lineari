@@ -13,7 +13,7 @@ from ..db import get_db
 from ..errors import AppError
 from ..gravatar import gravatar_url
 from ..models import Employee
-from ..schemas import EmployeeCreate, EmployeeList, EmployeeOut
+from ..schemas import EmployeeCreate, EmployeeList, EmployeeOut, EmployeeUpdate
 
 router = APIRouter(prefix="/employees", tags=["Employees"])
 
@@ -72,6 +72,25 @@ def _get_out(db: Session, employee_id: uuid.UUID) -> EmployeeOut:
     if row is None:
         raise AppError(404, "not_found", "Employee is not found, Please try again")
     return _to_out(row)
+
+# deals with any circular dependencies here
+def _chain_contains(db: Session, start_id: uuid.UUID, needle_id: uuid.UUID) -> bool:
+    """True if needle_id is start_id, or anyone above has a start_id in the reporting chain.
+    
+    goes to the manager links via a recursive query. We use it to stop any circular reporting lines
+    for example: if a new manager already reports to the employee, then making them a manager creates an endless loop of reporting to eachother.
+    """
+
+    chain = (
+        select(Employee.id.label("id"), Employee.manager_id.label("manager_id"))
+        .where(Employee.id == start_id)
+        .cte("chain", recursive=True)
+    )
+    above = aliased(Employee)
+    chain = chain.union(select(above.id, above.manager_id).where(above.id == chain.c.manager_id))
+    found = db.scalar(select(func.count()).select_from(chain).where(chain.c.id == needle_id))
+    return bool(found)
+
 
 # GET request for employee list
 @router.get("", response_model=EmployeeList)
@@ -159,3 +178,137 @@ def  create_employee(payload: EmployeeCreate, db: Annotated[Session, Depends(get
 @router.get("/{employee_id}", response_model=EmployeeOut)
 def get_employee(employee_id: uuid.UUID, db: Annotated[Session, Depends(get_db)]):
     return _get_out(db, employee_id)
+
+@router.get("/{employee_id}", response_model=EmployeeOut)
+def get_employee(employee_id: uuid.UUID, db: Annotated[Session, Depends(get_db)]):
+    return _get_out(db, employee_id)
+ 
+ 
+@router.patch("/{employee_id}", response_model=EmployeeOut)
+def update_employee(
+    employee_id: uuid.UUID,
+    payload: EmployeeUpdate,
+    db: Annotated[Session, Depends(get_db)],
+):
+    employee = db.get(Employee, employee_id)
+    if employee is None:
+        raise AppError(404, "not_found", "Employee not found")
+ 
+    # Only the fields the client actually sent. This is how we tell
+    # "manager_id: null" (remove the manager) apart from "manager_id not sent".
+    changes = payload.model_dump(exclude_unset=True)
+ 
+    if changes.get("manager_id") is not None:
+        new_manager_id = changes["manager_id"]
+        if new_manager_id == employee.id:
+            raise AppError(422, "self_manager", "An employee cannot be their own manager")
+        if db.get(Employee, new_manager_id) is None:
+            raise AppError(404, "not_found", "Manager not found")
+        if _chain_contains(db, new_manager_id, employee.id):
+            raise AppError(
+                422,
+                "circular_reporting_line",
+                "That would create a circular reporting line",
+            )
+ 
+    if "emp_number" in changes:
+        taken = db.scalar(
+            select(Employee.id).where(
+                Employee.emp_number == changes["emp_number"], Employee.id != employee.id
+            )
+        )
+        if taken:
+            raise AppError(409, "duplicate_employee_number", "This employee number is already in use")
+ 
+    if "email" in changes:
+        changes["email"] = changes["email"].strip().lower()
+        taken = db.scalar(
+            select(Employee.id).where(
+                func.lower(Employee.email) == changes["email"], Employee.id != employee.id
+            )
+        )
+        if taken:
+            raise AppError(409, "duplicate_email", "This email is already in use")
+ 
+    for field, value in changes.items():
+        setattr(employee, field, value)
+    db.commit()
+    return _get_out(db, employee.id)
+ 
+ 
+@router.delete("/{employee_id}", status_code=204)
+def delete_employee(
+    employee_id: uuid.UUID,
+    db: Annotated[Session, Depends(get_db)],
+    reassign_reports_to: uuid.UUID | None = None,
+    reassign_to_none: bool = False,
+):
+    employee = db.get(Employee, employee_id)
+    if employee is None:
+        raise AppError(404, "not_found", "Employee not found")
+ 
+    if reassign_reports_to is not None and reassign_to_none:
+        raise AppError(
+            422,
+            "validation_error",
+            "Use either reassign_reports_to or reassign_to_none, not both",
+        )
+ 
+    report_count = db.scalar(
+        select(func.count(Employee.id)).where(Employee.manager_id == employee.id)
+    )
+ 
+    if report_count and reassign_reports_to is None and not reassign_to_none:
+        raise AppError(
+            409,
+            "has_direct_reports",
+            "This employee has direct reports. Reassign them before deleting.",
+            {"direct_report_count": report_count},
+        )
+ 
+    if report_count:
+        if reassign_reports_to is not None:
+            if reassign_reports_to == employee.id:
+                raise AppError(422, "validation_error", "Cannot reassign reports to the employee being deleted")
+            if db.get(Employee, reassign_reports_to) is None:
+                raise AppError(404, "not_found", "The new manager was not found")
+            # The new manager must not sit underneath the employee being deleted,
+            # otherwise moving the reports to them would create a loop.
+            if _chain_contains(db, reassign_reports_to, employee.id):
+                raise AppError(
+                    422,
+                    "circular_reporting_line",
+                    "The new manager reports to the employee being deleted",
+                )
+        # Move the reports and delete in one transaction, so nothing is half done.
+        db.execute(
+            update(Employee)
+            .where(Employee.manager_id == employee.id)
+            .values(manager_id=reassign_reports_to)
+        )
+        db.expire_all()
+        employee = db.get(Employee, employee_id)
+ 
+    db.delete(employee)
+    db.commit()
+    return Response(status_code=204)
+ 
+ 
+@router.get("/{employee_id}/ancestors", response_model=list[EmployeeOut], tags=["Hierarchy"])
+def get_employee_ancestors(employee_id: uuid.UUID, db: Annotated[Session, Depends(get_db)]):
+    """Managers above this employee, from the top of the organisation down."""
+    employee = db.get(Employee, employee_id)
+    if employee is None:
+        raise AppError(404, "not_found", "Employee not found")
+ 
+    chain: list[EmployeeOut] = []
+    seen: set[uuid.UUID] = set()
+    current_id = employee.manager_id
+    while current_id is not None and current_id not in seen:
+        seen.add(current_id)
+        row = db.execute(_base_select().where(Employee.id == current_id)).one()
+        chain.append(_to_out(row))
+        current_id = row[0].manager_id
+    chain.reverse()
+    return chain
+ 

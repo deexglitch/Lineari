@@ -97,3 +97,12 @@ class EmployeeList(BaseModel):
     total: int
     page: int
     page_size: int
+
+class HierarchyNode(BaseModel):
+    id: UUID
+    name: str
+    surname: str
+    role: str
+    avatar_url: str
+    direct_report_count: int
+    children: list["HierarchyNode"]
