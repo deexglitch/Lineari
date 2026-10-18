@@ -4,34 +4,34 @@ info:
   version: 0.1.0
   description: >
     This serves as the Lineari employee hierarchy API. This file is the source of truth:
-    the fastAPI implementation and react client are built to match this.
-  servers:
-    - url: http://localhost:8000
-      description: local dev
-  tags:
-    - name: Employees
-    - name: Hierarchy
-    - name: System
+    the FastAPI implementation and react client are built to match this.
+servers:
+  - url: http://localhost:8000
+    description: local dev
+tags:
+  - name: Employees
+  - name: Hierarchy
+  - name: System
 
-  paths:
+paths:
   # this is the health check endpoint
-    /health:
-      get:
-        tags: [System]
-        operationId: getHealth
-        summary: Service and db health check
-        responses:
-          "200":
-            description: Service health is up
-            content:
-              application/json:
-                schema:
-                  type: object
-                  required: [status]
-                  properties:
-                    status:
-                      type: string
-                      enum: [ok]
+  /health:
+    get:
+      tags: [System]
+      operationId: getHealth
+      summary: Service and db health check
+      responses:
+        "200":
+          description: Service health is up
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [status]
+                properties:
+                  status:
+                    type: string
+                    enum: [ok]
 
   # setting up the employee endpoint for data so frontend matches this
   /employees:
@@ -42,7 +42,7 @@ info:
       parameters:
         - name: search
           in: query
-          description: Case insensitve match on an employees name, surname, email, employee no or role
+          description: Case insensitive match on an employees name, surname, email, employee no or role
           schema: { type: string }
         - name: role
           in: query
@@ -71,7 +71,7 @@ info:
           in: query
           schema:
             type: string
-            enum: [name, surname, email, birth_date, employee_number, salary, role, manager]
+            enum: [name, surname, email, birth_date, emp_number, salary, role, manager]
             default: surname
         - name: order
           in: query
@@ -163,7 +163,7 @@ info:
       operationId: deleteEmployee
       summary: Delete an employee
       description: >
-        if the employee has direct reports, the request fails wiith 409 unless reassign_reports_to is provided.
+        if the employee has direct reports, the request fails with 409 unless reassign_reports_to is provided.
          Pass the id of the new manager, or omit it and set reassign_to_none to true to leave the reports without a manager.
       parameters:
         - name: reassign_reports_to
@@ -283,7 +283,7 @@ components:
       allOf:
         - $ref: "#/components/schemas/EmployeeBase"
         - type: object
-          required: [name, surname, email, birth_date, employee_number, salary, role]
+          required: [name, surname, email, birth_date, emp_number, salary, role]
  
     EmployeeUpdate:
       description: Any subset of employee fields. Send manager_id as null to remove the manager.
@@ -297,7 +297,7 @@ components:
         - $ref: "#/components/schemas/EmployeeBase"
         - type: object
           required:
-            [id, name, surname, email, birth_date, employee_number, salary, role, manager_id, avatar_url, direct_report_count, created_at, updated_at]
+            [id, name, surname, email, birth_date, emp_number, salary, role, manager_id, avatar_url, direct_report_count, created_at, updated_at]
           properties:
             id:
               type: string

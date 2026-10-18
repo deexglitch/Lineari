@@ -7,3 +7,12 @@ SessionLocal = sessionmaker(bind=engine, autoflush=False)
 
 class Base(DeclarativeBase):
     pass
+
+
+def get_db():
+    """" Give each request its own db session and always close it."""
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
