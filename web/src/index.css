@@ -1,0 +1,51 @@
+@import "tailwindcss";
+
+@theme {
+  /* Brand palette, straight from the identity board */
+  --color-brand-teal: #0b6e6a;
+  --color-brand-lime: #b6d777;
+  --color-brand-coral: #f2674a;
+  --color-brand-mist: #d5e3df;
+  --color-brand-plum: #2b1d3a;
+
+  /* Semantic tokens. shadcn/ui components are written against these names,
+     so mapping them to the brand makes every component look like Lineari. */
+  --color-background: #f4f8f7;
+  --color-foreground: #2b1d3a;
+  --color-card: #ffffff;
+  --color-card-foreground: #2b1d3a;
+  --color-popover: #ffffff;
+  --color-popover-foreground: #2b1d3a;
+  --color-primary: #0b6e6a;
+  --color-primary-foreground: #ffffff;
+  --color-secondary: #d5e3df;
+  --color-secondary-foreground: #2b1d3a;
+  --color-muted: #e8f0ee;
+  --color-muted-foreground: #5b4f68;
+  --color-accent: #b6d777;
+  --color-accent-foreground: #2b1d3a;
+  --color-destructive: #c93c3c;
+  --color-border: #d5e3df;
+  --color-input: #d5e3df;
+  --color-ring: #0b6e6a;
+
+  --font-sans: "Manrope", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Quicksand", ui-sans-serif, system-ui, sans-serif;
+}
+
+body {
+  margin: 0;
+  background: var(--color-background);
+  color: var(--color-foreground);
+  font-family: var(--font-sans);
+}
+
+/* Respect people who ask for less motion. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
