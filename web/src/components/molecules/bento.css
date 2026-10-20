@@ -1,4 +1,3 @@
-/* Registered so the glow can fade in and out instead of snapping. */
 @property --bento-near {
   syntax: "<number>";
   inherits: true;
@@ -15,16 +14,33 @@
 }
 
 .bento-card {
-  /* r g b, used as rgb(var(--bento-glow) / alpha) */
-  --bento-glow: 11 110 106;
+  --tint: 224 214 236; /* #d5e3df */
+  --bento-glow: var(--tint);
+  --glass-top: rgb(var(--tint) / 0.55);
+  --glass-bottom: rgb(var(--tint) / 0.2);
+  --glass-edge: rgb(var(--tint) / 0.45);
+  --glass-shine: rgb(var(--tint) / 0.7);
+
   position: relative;
   isolation: isolate;
   overflow: hidden;
   transition: --bento-hot 300ms ease;
+
+  background: linear-gradient(145deg, var(--glass-top), var(--glass-bottom));
+  -webkit-backdrop-filter: blur(24px) saturate(0);
+  backdrop-filter: blur(24px) saturate(0);
+  box-shadow:
+    inset 0 1px 0 var(--glass-shine),
+    inset 0 0 0 1px var(--glass-edge),
+    inset 0 -12px 24px -12px rgb(0 0 0 / 0.08),
+    0 10px 30px -10px rgb(0 0 0 / 0.25);
 }
 
-.bento-card[data-tone="teal"] {
-  --bento-glow: 213 227 223;
+.bento-card[data-tone="smoke"] {
+  --glass-top: rgb(44 38 56 / 0.55);
+  --glass-bottom: rgb(14 10 22 / 0.45);
+  --glass-edge: rgb(var(--tint) / 0.14);
+  --glass-shine: rgb(var(--tint) / 0.25);
 }
 
 /* Spotlight that follows the pointer inside the hovered card */
@@ -37,7 +53,7 @@
   pointer-events: none;
   background: radial-gradient(
     320px circle at var(--bento-x, -999px) var(--bento-y, -999px),
-    rgb(var(--bento-glow) / calc(0.12 * var(--bento-hot))),
+    rgb(var(--bento-glow) / calc(0.22 * var(--bento-hot))),
     transparent 70%
   );
 }
@@ -75,6 +91,62 @@
   z-index: 0;
   border-radius: 50%;
   translate: -50% -50%;
-  background: rgb(var(--bento-glow) / 0.35);
+  background: rgb(var(--bento-glow) / 0.4);
   pointer-events: none;
+}
+
+.glass-panel {
+  --tint: 224 214 236; /* #e0d6ec */
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  background: linear-gradient(145deg, rgb(44 38 56 / 0.55), rgb(14 10 22 / 0.45));
+  -webkit-backdrop-filter: blur(24px) saturate(0);
+  backdrop-filter: blur(24px) saturate(0);
+  box-shadow:
+    inset 0 1px 0 rgb(var(--tint) / 0.25),
+    inset 0 0 0 1px rgb(var(--tint) / 0.14),
+    inset 0 -12px 24px -12px rgb(0 0 0 / 0.2),
+    0 10px 30px -10px rgb(0 0 0 / 0.35);
+}
+
+/* Lighter panel that sits inside another glass surface */
+.glass-panel--inset {
+  background: linear-gradient(145deg, rgb(var(--tint) / 0.16), rgb(var(--tint) / 0.06));
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+  box-shadow:
+    inset 0 1px 0 rgb(var(--tint) / 0.3),
+    inset 0 0 0 1px rgb(var(--tint) / 0.2);
+}
+
+.glass-tab {
+  --tint: 224 214 236; /* #e0d6ec */
+  color: rgb(var(--tint) / 0.75);
+  transition:
+    background-color 200ms ease,
+    color 200ms ease,
+    box-shadow 200ms ease;
+}
+
+.glass-tab:hover {
+  background: rgb(var(--tint) / 0.1);
+  color: rgb(var(--tint));
+}
+
+/* NavLink sets aria-current="page" on the active route */
+.glass-tab[aria-current="page"] {
+  color: rgb(var(--tint));
+  background: linear-gradient(145deg, rgb(44 38 56 / 0.55), rgb(14 10 22 / 0.45));
+  -webkit-backdrop-filter: blur(16px) saturate(0);
+  backdrop-filter: blur(16px) saturate(0);
+  box-shadow:
+    inset 0 1px 0 rgb(var(--tint) / 0.25),
+    inset 0 0 0 1px rgb(var(--tint) / 0.14),
+    0 6px 16px -8px rgb(0 0 0 / 0.35);
+}
+
+.glass-tab:focus-visible {
+  outline: 2px solid rgb(var(--tint) / 0.6);
+  outline-offset: 2px;
 }

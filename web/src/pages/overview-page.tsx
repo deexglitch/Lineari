@@ -6,7 +6,6 @@ import {
   TreeStructure,
   UserCircle,
 } from "@phosphor-icons/react";
-import Silk from "@/components/vendor/Silk";
 import { BentoCard, BentoGrid } from "@/components/molecules/bento-card";
 import { CountUp } from "@/components/atoms/count-up";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -51,13 +50,13 @@ function ProfileCard({ user }: { user?: ProfileUser | null }) {
   return (
     <aside
       aria-label="Signed-in profile"
-      className="flex flex-col gap-5 rounded-3xl bg-brand-plum/45 p-6 ring-1 ring-white/20 backdrop-blur-md"
+      className="glass-panel glass-panel--inset flex flex-col gap-5 rounded-3xl p-6"
     >
       <div className="flex items-center justify-between gap-3">
-        <h2 className="text-sm font-bold uppercase tracking-[0.18em] text-brand-lime">
+        <h2 className="text-sm font-bold uppercase tracking-[0.18em] text-[#e0d6ec]">
           Signed-in profile
         </h2>
-        <Badge className="rounded-full bg-brand-lime px-3 text-brand-plum hover:bg-brand-lime">
+        <Badge className="rounded-full bg-[#e0d6ec] px-3 text-[#1a1424] hover:bg-[#e0d6ec]">
           {user ? "Connected" : "Not connected"}
         </Badge>
       </div>
@@ -65,7 +64,7 @@ function ProfileCard({ user }: { user?: ProfileUser | null }) {
       <div className="flex items-center gap-4">
         <Avatar className="size-14 rounded-2xl">
           {user?.avatarUrl && <AvatarImage src={user.avatarUrl} alt="" />}
-          <AvatarFallback className="rounded-2xl bg-brand-lime text-lg font-bold text-brand-plum">
+          <AvatarFallback className="rounded-2xl bg-[#e0d6ec] text-lg font-bold text-[#1a1424]">
             {user ? initials(user.name) : <UserCircle size={28} weight="bold" aria-hidden />}
           </AvatarFallback>
         </Avatar>
@@ -73,13 +72,13 @@ function ProfileCard({ user }: { user?: ProfileUser | null }) {
           <p className="truncate text-xl font-extrabold leading-tight">
             {user ? user.name : "No user session connected"}
           </p>
-          <p className="truncate text-sm text-white/80">
+          <p className="truncate text-sm text-[#e0d6ec]/80">
             {user?.email ?? "No email available"}
           </p>
         </div>
       </div>
 
-      <p className="text-sm text-white/80">
+      <p className="text-sm text-[#e0d6ec]/80">
         {user
           ? (user.role ?? "Role or access level unavailable")
           : "Connect authentication to display account details."}
@@ -89,7 +88,7 @@ function ProfileCard({ user }: { user?: ProfileUser | null }) {
         to="/account"
         className={cn(
           buttonVariants({ size: "lg" }),
-          "mt-auto rounded-full bg-white font-bold text-brand-plum hover:bg-white/90",
+          "mt-auto rounded-full bg-[#e0d6ec] font-bold text-[#1a1424] hover:bg-[#e0d6ec]/90",
         )}
       >
         Account settings
@@ -120,57 +119,55 @@ export default function OverviewPage({ employees, isLoading, user }: OverviewPag
 
   return (
     <div className="space-y-4">
-      {/* Hero */}
-      <section className="relative isolate overflow-hidden rounded-[2rem] bg-brand-plum/50 text-white backdrop-blur-sm">
-        
-        {/* Keeps the headline readable over the brightest folds. */}
-        <div className="absolute inset-0 -z-10 bg-linear-to-r from-brand-plum from-30% via-brand-plum/75 via-60% to-transparent" />
 
-        <div className="grid gap-8 p-6 md:p-10 lg:grid-cols-[1.7fr_1fr]">
-          <div className="flex flex-col justify-between gap-10 py-2 lg:py-6">
-            <div>
-              <p className="text-sm font-bold uppercase tracking-[0.18em] text-brand-lime">
-                {firstName ? `Welcome back, ${firstName}` : "Your people, connected"}
-              </p>
-              <h1 className="mt-5 max-w-xl text-4xl font-extrabold leading-[1.05] tracking-tight md:text-5xl">
-                A clearer picture of every reporting line.
-              </h1>
-              <p className="mt-5 max-w-lg text-base text-white/85">
-                Explore your organisation, follow the chain of command, and keep employee
-                information in one thoughtful workspace.
-              </p>~
-            </div>
-            <div className="flex flex-wrap gap-3">
-              <Link
-                to="/organisation"
-                className={cn(
-                  buttonVariants({ size: "lg" }),
-                  "rounded-full bg-brand-lime font-bold text-brand-plum hover:bg-brand-lime/90",
-                )}
-              >
-                <TreeStructure weight="bold" aria-hidden />
-                Explore organisation
-              </Link>
-              <Link
-                to="/employees"
-                className={cn(
-                  buttonVariants({ size: "lg" }),
-                  "rounded-full bg-white font-bold text-brand-plum hover:bg-white/90",
-                )}
-              >
-                View employees
-                <ArrowRight weight="bold" aria-hidden />
-              </Link>
-            </div>
-          </div>
 
-          <ProfileCard user={user} />
-        </div>
-      </section>
+        <section className="glass-panel rounded-[2rem] text-[#e0d6ec]">
+  <div className="grid gap-8 p-6 md:p-10 lg:grid-cols-[1.7fr_1fr]">
+    <div className="flex flex-col justify-between gap-10 py-2 lg:py-6">
+      <div>
+        <p className="text-sm font-bold uppercase tracking-[0.18em] text-[#e0d6ec]/80">
+          {firstName ? `Welcome back, ${firstName}` : "Your people, connected"}
+        </p>
+        <h1 className="mt-5 max-w-xl text-4xl font-extrabold leading-[1.05] tracking-tight md:text-5xl">
+          A clearer picture of every reporting line.
+        </h1>
+        <p className="mt-5 max-w-lg text-base text-[#e0d6ec]/85">
+          Explore your organisation, follow the chain of command, and keep employee
+          information in one thoughtful workspace.
+        </p>
+      </div>
+      <div className="flex flex-wrap gap-3">
+        <Link
+          to="/organisation"
+          className={cn(
+            buttonVariants({ size: "lg" }),
+            "rounded-full bg-[#e0d6ec] font-bold text-[#1a1424] hover:bg-[#e0d6ec]/90",
+          )}
+        >
+          <TreeStructure weight="bold" aria-hidden />
+          Explore organisation
+        </Link>
+        <Link
+          to="/employees"
+          className={cn(
+            buttonVariants({ size: "lg" }),
+            "rounded-full bg-[#e0d6ec]/15 font-bold text-[#e0d6ec] ring-1 ring-[#e0d6ec]/30 backdrop-blur-md hover:bg-[#e0d6ec]/25",
+          )}
+        >
+          View employees
+          <ArrowRight weight="bold" aria-hidden />
+        </Link>
+      </div>
+    </div>
+
+    <ProfileCard user={user} />
+  </div>
+</section>
+
 
       {/* Bento stats */}
       <BentoGrid className="auto-rows-[minmax(9.5rem,auto)] grid-cols-1 md:grid-cols-6 lg:grid-cols-12">
-        <BentoCard tone="teal" className="justify-between md:col-span-6 lg:col-span-5 lg:row-span-2">
+        <BentoCard tone="clear" className="justify-between md:col-span-6 lg:col-span-5 lg:row-span-2">
           <h2 className="text-sm font-semibold text-white/85">Employees</h2>
           {isLoading ? (
             <Skeleton className="h-24 w-40 bg-white/20" />

@@ -100,7 +100,7 @@ export function BentoGrid({
 }
 
 type BentoCardProps = {
-  tone?: "paper" | "teal";
+  tone?: "clear" | "smoke";
   /** Makes the whole card a link. */
   to?: string;
   className?: string;
@@ -108,7 +108,7 @@ type BentoCardProps = {
   children: ReactNode;
 };
 
-export function BentoCard({ tone = "paper", to, className, style, children }: BentoCardProps) {
+export function BentoCard({ tone = "clear", to, className, style, children }: BentoCardProps) {
   const ref = useRef<HTMLElement | null>(null);
 
   // A ring of light spreads from wherever the card was pressed.
@@ -137,11 +137,9 @@ export function BentoCard({ tone = "paper", to, className, style, children }: Be
 
   const classes = cn(
     "bento-card flex flex-col rounded-3xl p-6",
-    tone === "teal"
-      ? "bg-brand-teal text-white"
-      : "bg-card text-card-foreground ring-1 ring-border",
+    tone === "smoke" ? "text-white" : "text-foreground",
     to &&
-      "cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-teal",
+      "cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-foreground/60",
     className,
   );
 

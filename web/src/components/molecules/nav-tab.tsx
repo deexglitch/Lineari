@@ -17,12 +17,9 @@ export function NavTab({
     <NavLink
       to={to}
       end={end}
-      className={({ isActive }) =>
-        cn(
-          'inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-bold transition-colors',
-          isActive ? 'bg-secondary text-foreground' : 'text-muted-foreground hover:bg-muted',
-        )
-      }
+      className={cn(
+        'glass-tab inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-bold',
+      )}
     >
       {icon}
       {children}
