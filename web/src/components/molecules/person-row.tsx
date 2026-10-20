@@ -33,9 +33,9 @@ export function PersonRow({
               : `${fullName(node)} has no reports`
           }
           className={cn(
-            "grid size-7 shrink-0 place-items-center rounded-full text-[#e0d6ec] transition-colors",
-            "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#e0d6ec]/60",
-            hasChildren ? "hover:bg-[#e0d6ec]/15" : "opacity-0",
+            "grid size-7 shrink-0 place-items-center rounded-full text-panel transition-colors",
+            "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-panel/60",
+            hasChildren ? "hover:bg-panel/15" : "opacity-0",
           )}
         >
           <CaretRight

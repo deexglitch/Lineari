@@ -1,9 +1,8 @@
 import { Navigate, Route, Routes } from 'react-router-dom'
 import { AppLayout } from '@/components/templates/app-layout'
 import OverviewPage from '@/pages/overview-page'
-import OrganisationPage from '@/pages/organisationpage'
-// import { TablePage } from '@/pages/table-page'
-import { useEmployees } from '@/hooks/useEmployeeCount'
+import OrganisationPage from '@/pages/organisation-page'
+import { useEmployees } from '@/hooks/useEmployees'
 import { useHierarchy } from '@/hooks/useHierarchy'
 
 function OverviewRoute() {
