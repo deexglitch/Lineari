@@ -31,18 +31,6 @@ function initials(name: string) {
     .join("");
 }
 
-function flatten(nodes: HierarchyNode[]): HierarchyNode[] {
-  const out: HierarchyNode[] = [];
-  const walk = (list: HierarchyNode[]) => {
-    for (const n of list) {
-      out.push(n);
-      walk(n.children);
-    }
-  };
-  walk(nodes);
-  return out;
-}
-
 function findWithPath(
   nodes: HierarchyNode[],
   name: string,
@@ -118,7 +106,7 @@ function PersonChip({
         <p className="truncate text-sm font-bold leading-tight text-foreground">
           {node.name} {node.surname}
         </p>
-        <p className="truncate text-xs text-muted-foreground">{node.role}</p>
+        <p className="truncate text-sm text-muted-foreground">{node.role}</p>
       </div>
       {onClick && <CaretRight size={14} weight="bold" className="shrink-0 text-muted-foreground" />}
     </button>
@@ -149,6 +137,10 @@ export function ProfilePanel({
   const reportsTotal = me?.node.direct_report_count ?? reports.length;
   const chain = me?.ancestors ?? [];
 
+  // Prefer the role carried on the profile; fall back to the matched
+  // employee's role once the hierarchy lookup resolves.
+  const role = user?.role ?? me?.node.role ?? "Role unavailable";
+
   return (
     <section className="glass-panel rounded-[2rem] text-foreground">
       <div className="flex flex-col gap-8 p-6 md:p-10">
@@ -163,14 +155,12 @@ export function ProfilePanel({
             </Avatar>
             <div className="min-w-0">
               <p className="text-xs font-bold uppercase tracking-[0.18em] text-muted-foreground">
-                {firstName ? `Welcome back,` : "Your workspace"}
+                {firstName ? "Welcome back," : "Your workspace"}
               </p>
               <h1 className="truncate text-3xl font-extrabold leading-tight text-foreground md:text-4xl">
                 {user ? user.name : "Not signed in"}
               </h1>
-              <p className="truncate text-sm text-muted-foreground">
-                {user?.role ?? "Role unavailable"}
-              </p>
+              <p className="truncate text-sm text-muted-foreground">{role}</p>
             </div>
           </div>
 

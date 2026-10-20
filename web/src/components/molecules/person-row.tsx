@@ -9,19 +9,29 @@ export function PersonRow({
   node,
   depth,
   forceOpen,
+  highlightId,
 }: {
   node: HierarchyNode;
   depth: number;
   forceOpen: boolean;
+  highlightId?: string;
 }) {
   const [open, setOpen] = useState(depth < 1);
   const hasChildren = node.children.length > 0;
   const expanded = hasChildren && (open || forceOpen);
   const reports = node.direct_report_count;
+  const highlighted = node.id === highlightId;
 
   return (
     <li>
-      <div className="flex items-center gap-3 rounded-2xl px-2 py-2 transition-colors hover:bg-[#e0d6ec]/10">
+      <div
+        className={cn(
+          "flex items-center gap-3 rounded-2xl px-2 py-2 transition-colors",
+          highlighted
+            ? "bg-primary/10 ring-1 ring-primary/40"
+            : "hover:bg-[color-mix(in_srgb,var(--color-card),transparent_60%)]",
+        )}
+      >
         <button
           type="button"
           onClick={() => setOpen((v) => !v)}
@@ -33,9 +43,9 @@ export function PersonRow({
               : `${fullName(node)} has no reports`
           }
           className={cn(
-            "grid size-7 shrink-0 place-items-center rounded-full text-panel transition-colors",
-            "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-panel/60",
-            hasChildren ? "hover:bg-panel/15" : "opacity-0",
+            "grid size-7 shrink-0 place-items-center rounded-full text-muted-foreground transition-colors",
+            "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring/60",
+            hasChildren ? "hover:bg-secondary hover:text-foreground" : "opacity-0",
           )}
         >
           <CaretRight
@@ -48,27 +58,33 @@ export function PersonRow({
 
         <Avatar className="size-10 rounded-xl">
           <AvatarImage src={node.avatar_url} alt="" />
-          <AvatarFallback className="rounded-xl bg-[#e0d6ec]/20 font-bold text-[#e0d6ec] ring-1 ring-[#e0d6ec]/25">
+          <AvatarFallback className="rounded-xl bg-primary/15 font-bold text-foreground ring-1 ring-border">
             {initials(node)}
           </AvatarFallback>
         </Avatar>
 
         <div className="min-w-0 flex-1">
-          <p className="truncate font-bold leading-tight">{fullName(node)}</p>
-          <p className="truncate text-sm text-[#e0d6ec]/70">{node.role}</p>
+          <p className="truncate font-bold leading-tight text-foreground">{fullName(node)}</p>
+          <p className="truncate text-sm text-muted-foreground">{node.role}</p>
         </div>
 
         {reports > 0 && (
-          <span className="shrink-0 rounded-full bg-[#e0d6ec]/12 px-3 py-1 text-xs font-semibold tabular-nums text-[#e0d6ec] ring-1 ring-[#e0d6ec]/20">
+          <span className="shrink-0 rounded-full bg-secondary px-3 py-1 text-xs font-semibold tabular-nums text-foreground ring-1 ring-border">
             {reports} {reports === 1 ? "report" : "reports"}
           </span>
         )}
       </div>
 
       {expanded && (
-        <ul className="ml-6 border-l border-[#e0d6ec]/20 pl-3">
+        <ul className="ml-6 border-l border-border/60 pl-3">
           {node.children.map((child) => (
-            <PersonRow key={child.id} node={child} depth={depth + 1} forceOpen={forceOpen} />
+            <PersonRow
+              key={child.id}
+              node={child}
+              depth={depth + 1}
+              forceOpen={forceOpen}
+              highlightId={highlightId}
+            />
           ))}
         </ul>
       )}

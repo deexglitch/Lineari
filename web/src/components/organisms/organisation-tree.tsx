@@ -12,6 +12,8 @@ type OrganisationTreeProps = {
   isError?: boolean;
   /** Search term used to force-open matches and to tune the empty message. */
   query: string;
+  /** When set, the row with this id is force-opened and its ancestors' rows too. */
+  focusId?: string;
   onClearSearch: () => void;
 };
 
@@ -20,20 +22,21 @@ export function OrganisationTree({
   isLoading,
   isError,
   query,
+  focusId,
   onClearSearch,
 }: OrganisationTreeProps) {
   const searching = query.trim().length > 0;
 
   const buttonClass = cn(
     buttonVariants({ size: "lg" }),
-    "rounded-full bg-[#e0d6ec] font-bold text-[#1a1424] hover:bg-[#e0d6ec]/90",
+    "rounded-full bg-primary font-bold text-primary-foreground hover:bg-[color-mix(in_srgb,var(--color-primary),white_12%)]",
   );
 
   if (isLoading) {
     return (
       <div className="space-y-3" aria-busy="true">
         {[0, 1, 2, 3].map((i) => (
-          <Skeleton key={i} className="h-14 w-full rounded-2xl bg-[#e0d6ec]/15" />
+          <Skeleton key={i} className="h-14 w-full rounded-2xl bg-muted" />
         ))}
       </div>
     );
@@ -42,8 +45,8 @@ export function OrganisationTree({
   if (isError) {
     return (
       <div className="px-2 py-6">
-        <p className="text-lg font-bold">Couldn’t load the organisation.</p>
-        <p className="mt-1 text-sm text-[#e0d6ec]/70">
+        <p className="text-lg font-bold">Couldn't load the organisation.</p>
+        <p className="mt-1 text-sm text-muted-foreground">
           Check that the API is running at localhost:8000, then refresh.
         </p>
       </div>
@@ -54,7 +57,13 @@ export function OrganisationTree({
     return (
       <ul aria-label="Organisation tree">
         {roots.map((node) => (
-          <PersonRow key={node.id} node={node} depth={0} forceOpen={searching} />
+          <PersonRow
+            key={node.id}
+            node={node}
+            depth={0}
+            forceOpen={searching || Boolean(focusId)}
+            highlightId={focusId}
+          />
         ))}
       </ul>
     );
@@ -63,7 +72,7 @@ export function OrganisationTree({
   return (
     <div className="flex flex-col items-start gap-4 px-2 py-6">
       <p className="text-lg font-bold">
-        {searching ? `No one matches “${query.trim()}”.` : "No employees to show yet."}
+        {searching ? `No one matches "${query.trim()}".` : "No employees to show yet."}
       </p>
       {searching ? (
         <button type="button" onClick={onClearSearch} className={buttonClass}>
