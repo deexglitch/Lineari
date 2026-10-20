@@ -6,6 +6,7 @@ import { AddEmployeeDialog } from "@/components/organisms/addemployeedialog";
 import { DeleteEmployeeDialog } from "@/components/organisms/delete-employee-dialog";
 import { EmployeeTable } from "@/components/organisms/employee-table";
 import { useEmployees } from "@/hooks/useEmployees";
+import { EditEmployeeDialog } from "@/components/organisms/edit-employee-dialog";
 import {
   useEmployeeDirectory,
   type Employee,
@@ -17,6 +18,7 @@ export default function EmployeesPage() {
   const directory = useEmployeeDirectory(data ?? []);
   const [addOpen, setAddOpen] = useState(false);
   const [deleting, setDeleting] = useState<Employee | null>(null);
+  const [editing, setEditing] = useState<Employee | null>(null);
 
   return (
     <div className="space-y-4">
@@ -100,6 +102,7 @@ export default function EmployeesPage() {
             onClearSearch={() => directory.setQuery("")}
             onAddFirst={() => setAddOpen(true)}
             onDelete={(employee) => setDeleting(employee)}
+            onEdit={(employee) => setEditing(employee)}
           />
         </div>
       </section>
@@ -114,6 +117,11 @@ export default function EmployeesPage() {
         employee={deleting}
         all={data ?? []}
         onClose={() => setDeleting(null)}
+      />
+      <EditEmployeeDialog
+        employee={editing}
+        managers={directory.managers}
+        onClose={() => setEditing(null)}
       />
     </div>
   );
