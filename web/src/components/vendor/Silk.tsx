@@ -633,7 +633,7 @@ const Silk = ({
       gl.deleteProgram(compositeProgram.program);
       gl.deleteBuffer(buffer);
       gl.deleteVertexArray(vao);
-      gl.getExtension('WEBGL_lose_context')?.loseContext();
+    //   gl.getExtension('WEBGL_lose_context')?.loseContext();
     };
   }, []);
 
