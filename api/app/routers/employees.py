@@ -5,8 +5,8 @@ from datetime import date
 from decimal import Decimal
 from typing import Annotated, Literal
 
-from fastapi import APIRouter, Depends, Query
-from sqlalchemy import func, or_, select
+from fastapi import APIRouter, Depends, Query, Response
+from sqlalchemy import func, or_, select, update
 from sqlalchemy.orm import Session, aliased
 
 from ..db import get_db
@@ -175,10 +175,6 @@ def  create_employee(payload: EmployeeCreate, db: Annotated[Session, Depends(get
     return _get_out(db, employee.id)
 
 #GET request endpoint for returning an employee
-@router.get("/{employee_id}", response_model=EmployeeOut)
-def get_employee(employee_id: uuid.UUID, db: Annotated[Session, Depends(get_db)]):
-    return _get_out(db, employee_id)
-
 @router.get("/{employee_id}", response_model=EmployeeOut)
 def get_employee(employee_id: uuid.UUID, db: Annotated[Session, Depends(get_db)]):
     return _get_out(db, employee_id)
