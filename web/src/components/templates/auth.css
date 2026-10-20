@@ -1,0 +1,15 @@
+/* Same glass recipe as the rest of the app, tinted with the brand teal instead of lavender. */
+.auth-glass {
+  --tint: 213 227 223; /* brand mist #d5e3df */
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  background: linear-gradient(145deg, rgb(11 110 106 / 0.34), rgb(5 20 19 / 0.66));
+  -webkit-backdrop-filter: blur(24px) saturate(1.15);
+  backdrop-filter: blur(24px) saturate(1.15);
+  box-shadow:
+    inset 0 1px 0 rgb(var(--tint) / 0.3),
+    inset 0 0 0 1px rgb(var(--tint) / 0.16),
+    inset 0 -14px 28px -14px rgb(0 0 0 / 0.3),
+    0 24px 60px -24px rgb(0 0 0 / 0.7);
+}

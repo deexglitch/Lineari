@@ -8,6 +8,7 @@ import {
 } from "@phosphor-icons/react";
 import PillNav from "@/components/vendor/PillNav";
 import  LogoLight  from "@/assets/logo-light.webp"
+import { SignOutButton } from "@/components/molecules/sign-out-button";
 
 /**
  * PillNav renders its links as <LinkComponent href=... />.
@@ -74,6 +75,7 @@ export function TopNav() {
             // PillNav's own CSS is unlayered, so Tailwind needs `!` to win here.
             className="data-collapsed:justify-end!"
           />
+          <SignOutButton />
         </div>
       </div>
     </header>
