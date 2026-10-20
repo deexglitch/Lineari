@@ -1,6 +1,6 @@
 import { Outlet } from "react-router-dom";
 import { TopNav } from "@/components/organisms/top-nav";
-import { AppBackground } from "../atoms/background";
+import { AppBackground } from "../../effects/background";
 
 export function AppLayout() {
   return (

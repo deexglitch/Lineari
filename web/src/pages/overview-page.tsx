@@ -6,13 +6,14 @@ import {
   TreeStructure,
   UserCircle,
 } from "@phosphor-icons/react";
-import { BentoCard, BentoGrid } from "@/components/molecules/bento-card";
+import { BentoCard } from "@/components/molecules/bento-card";
+import { BentoGrid } from "@/components/molecules/bento-grid";
 import { CountUp } from "@/components/atoms/count-up";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Badge } from "@/components/ui/badge";
-import { buttonVariants } from "@/components/ui/button";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/atoms/avatar";
+import { Badge } from "@/components/atoms/badge";
+import { buttonVariants } from "@/components/atoms/button";
+import { Skeleton } from "@/components/atoms/skeleton";
 import { cn } from "@/lib/utils";
-import { Skeleton } from "@/components/ui/skeleton";
 
 /**
  * Shape this page needs from your employee data. Map your API fields onto it
@@ -119,51 +120,48 @@ export default function OverviewPage({ employees, isLoading, user }: OverviewPag
 
   return (
     <div className="space-y-4">
+      <section className="glass-panel rounded-[2rem] text-[#e0d6ec]">
+        <div className="grid gap-8 p-6 md:p-10 lg:grid-cols-[1.7fr_1fr]">
+          <div className="flex flex-col justify-between gap-10 py-2 lg:py-6">
+            <div>
+              <p className="text-sm font-bold uppercase tracking-[0.18em] text-[#e0d6ec]/80">
+                {firstName ? `Welcome back, ${firstName}` : "Your people, connected"}
+              </p>
+              <h1 className="mt-5 max-w-xl text-4xl font-extrabold leading-[1.05] tracking-tight md:text-5xl">
+                A clearer picture of every reporting line.
+              </h1>
+              <p className="mt-5 max-w-lg text-base text-[#e0d6ec]/85">
+                Explore your organisation, follow the chain of command, and keep employee
+                information in one thoughtful workspace.
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-3">
+              <Link
+                to="/organisation"
+                className={cn(
+                  buttonVariants({ size: "lg" }),
+                  "rounded-full bg-[#e0d6ec] font-bold text-[#1a1424] hover:bg-[#e0d6ec]/90",
+                )}
+              >
+                <TreeStructure weight="bold" aria-hidden />
+                Explore organisation
+              </Link>
+              <Link
+                to="/employees"
+                className={cn(
+                  buttonVariants({ size: "lg" }),
+                  "rounded-full bg-[#e0d6ec]/15 font-bold text-[#e0d6ec] ring-1 ring-[#e0d6ec]/30 backdrop-blur-md hover:bg-[#e0d6ec]/25",
+                )}
+              >
+                View employees
+                <ArrowRight weight="bold" aria-hidden />
+              </Link>
+            </div>
+          </div>
 
-
-        <section className="glass-panel rounded-[2rem] text-[#e0d6ec]">
-  <div className="grid gap-8 p-6 md:p-10 lg:grid-cols-[1.7fr_1fr]">
-    <div className="flex flex-col justify-between gap-10 py-2 lg:py-6">
-      <div>
-        <p className="text-sm font-bold uppercase tracking-[0.18em] text-[#e0d6ec]/80">
-          {firstName ? `Welcome back, ${firstName}` : "Your people, connected"}
-        </p>
-        <h1 className="mt-5 max-w-xl text-4xl font-extrabold leading-[1.05] tracking-tight md:text-5xl">
-          A clearer picture of every reporting line.
-        </h1>
-        <p className="mt-5 max-w-lg text-base text-[#e0d6ec]/85">
-          Explore your organisation, follow the chain of command, and keep employee
-          information in one thoughtful workspace.
-        </p>
-      </div>
-      <div className="flex flex-wrap gap-3">
-        <Link
-          to="/organisation"
-          className={cn(
-            buttonVariants({ size: "lg" }),
-            "rounded-full bg-[#e0d6ec] font-bold text-[#1a1424] hover:bg-[#e0d6ec]/90",
-          )}
-        >
-          <TreeStructure weight="bold" aria-hidden />
-          Explore organisation
-        </Link>
-        <Link
-          to="/employees"
-          className={cn(
-            buttonVariants({ size: "lg" }),
-            "rounded-full bg-[#e0d6ec]/15 font-bold text-[#e0d6ec] ring-1 ring-[#e0d6ec]/30 backdrop-blur-md hover:bg-[#e0d6ec]/25",
-          )}
-        >
-          View employees
-          <ArrowRight weight="bold" aria-hidden />
-        </Link>
-      </div>
-    </div>
-
-    <ProfileCard user={user} />
-  </div>
-</section>
-
+          <ProfileCard user={user} />
+        </div>
+      </section>
 
       {/* Bento stats */}
       <BentoGrid className="auto-rows-[minmax(9.5rem,auto)] grid-cols-1 md:grid-cols-6 lg:grid-cols-12">
