@@ -11,19 +11,26 @@ import { useMe } from '@/hooks/useAuth'
 import TermsPage from "@/pages/terms-page";
 
 function OverviewRoute() {
-  const { data, isLoading } = useEmployees()
-  const { data: me } = useMe()
+  const { data: employees, isLoading } = useEmployees();
+  const { data: me } = useMe();
+  const { data: hierarchy } = useHierarchy();
+
   return (
     <OverviewPage
       isLoading={isLoading}
-      employees={data?.map((e) => ({ id: e.id, managerId: e.manager_id }))}
+      employees={employees?.map((e) => ({ id: e.id, managerId: e.manager_id }))}
       user={
         me
-          ? { name: `${me.first_name} ${me.last_name}`.trim() || me.email, email: me.email }
+          ? {
+              name: `${me.first_name} ${me.last_name}`.trim() || me.email,
+              email: me.email,
+              role: "Lineari account",
+            }
           : null
       }
+      hierarchy={hierarchy}
     />
-  )
+  );
 }
 
 function OrganisationRoute() {

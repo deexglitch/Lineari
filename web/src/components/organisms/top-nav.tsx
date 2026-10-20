@@ -2,20 +2,18 @@ import { forwardRef, type ComponentProps } from "react";
 import { Link, useLocation } from "react-router-dom";
 import {
   BookOpenText,
+  Moon,
   SquaresFour,
+  Sun,
   TreeStructure,
   Users,
 } from "@phosphor-icons/react";
 import PillNav from "@/components/vendor/PillNav";
-import  LogoLight  from "@/assets/logo-light.webp"
+import LogoLight from "@/assets/logo-light.webp";
+import LogoDark from "@/assets/logo-dark.webp";
 import { SignOutButton } from "@/components/molecules/sign-out-button";
+import { useTheme } from "@/hooks/useTheme";
 
-/**
- * PillNav renders its links as <LinkComponent href=... />.
- * React Router wants `to`, so this adapter translates. It lives at module
- * level so its identity is stable between renders (PillNav's animation
- * engine measures the DOM, and remounting links would reset it).
- */
 const RouterLink = forwardRef<HTMLAnchorElement, ComponentProps<"a">>(
   function RouterLink({ href = "/", ...props }, ref) {
     return <Link ref={ref} to={href} {...props} />;
@@ -35,46 +33,50 @@ function activeHrefFor(pathname: string) {
   const match = items.find(({ href }) =>
     href === "/" ? pathname === "/" : pathname.startsWith(href),
   );
-  // An empty string keeps PillNav in controlled mode with nothing selected,
-  // instead of falling back to its own click tracking on unknown routes.
   return match?.href ?? "";
 }
 
 export function TopNav() {
   const { pathname } = useLocation();
+  const { theme, toggle } = useTheme();
+  const dark = theme === "dark";
 
   return (
-    <header className="sticky top-0 z-40 border-b border-white/10 bg-brand-plum pl-0! pr-4 md:pr-6 py-3 shadow-md">
+    <header className="sticky top-0 z-40 border-b border-border bg-[color-mix(in_srgb,var(--bg)_78%,transparent)] py-3 pr-4 pl-0! shadow-md backdrop-blur-md md:pr-6">
       <div className="mx-auto flex max-w-7xl items-center gap-4">
         <Link
           to="/"
           aria-label="Lineari home"
-          className="mr-auto pointer-events-auto flex shrink-0 items-center gap-4 rounded-full focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-teal"
+          className="pointer-events-auto mr-auto flex shrink-0 items-center gap-4 rounded-full focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
         >
-          <img src={LogoLight} alt="" className="h-11 w-auto object-contain" />
-          
+          <img src={dark ? LogoLight : LogoDark} alt="" className="h-11 w-auto object-contain" />
         </Link>
 
-        {/* PillNav measures its parent's width to decide when to fold into a menu,
-            so it gets its own flexible wrapper rather than sharing a row with the brand. */}
-        <div className="pointer-events-auto flex min-w-0 flex-1 justify-end">
+        <div className="pointer-events-auto flex min-w-0 flex-1 items-center justify-end gap-2">
           <PillNav
             items={items}
             activeHref={activeHrefFor(pathname)}
             linkComponent={RouterLink}
             ariaLabel="Primary"
-            theme="light"
+            theme={dark ? "dark" : "light"}
             surface="glass"
             itemStyle="plain"
             hoverEffect="glide"
             indicator="pill"
-            barColor="rgba(255, 255, 255, 0.85)"
-            textColor="#2b1d3a"
+            barColor={dark ? "rgba(213, 227, 223, 0.10)" : "rgba(255, 255, 255, 0.85)"}
+            textColor={dark ? "#d5e3df" : "#2b1d3a"}
             highlightColor="#0b6e6a"
             highlightTextColor="#ffffff"
-            // PillNav's own CSS is unlayered, so Tailwind needs `!` to win here.
             className="data-collapsed:justify-end!"
           />
+          <button
+            type="button"
+            onClick={toggle}
+            aria-label={dark ? "Switch to light mode" : "Switch to dark mode"}
+            className="inline-flex size-9 shrink-0 items-center justify-center rounded-full bg-secondary text-foreground ring-1 ring-border transition-colors hover:bg-[color-mix(in_srgb,var(--color-secondary),var(--color-foreground)_6%)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+          >
+            {dark ? <Sun size={18} weight="bold" /> : <Moon size={18} weight="bold" />}
+          </button>
           <SignOutButton />
         </div>
       </div>
