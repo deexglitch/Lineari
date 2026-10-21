@@ -19,10 +19,10 @@
 
 ---
 
-## ✨ Features
+## Features
 
-| | Feature | What it does |
-|---|---|---|
+| Feature | What it does |
+|---|---|
  | **Employee directory** | Create, read, update and delete employees with search, filtering, sorting and pagination. |
  | **Reporting lines** | Assign any employee a manager, with automatic guards against self-management and circular reporting chains. |
  | **Organisation chart** | Nested hierarchy view with expand/collapse, live search and a level count. |
@@ -102,7 +102,7 @@ just check                      # lint contract + regen types + run tests
 
 ---
 
-## 📁 Project structure
+## Project structure
 
 ```text
 .
@@ -150,7 +150,7 @@ just check                      # lint contract + regen types + run tests
 
 ---
 
-## 🔌 The API
+## The API
 
 The full contract lives at [`contract/openapi.yaml`](contract/openapi.yaml). Once the API is running, interactive docs are at <http://localhost:8000/docs>.
 
@@ -238,7 +238,7 @@ Components are organised by responsibility, from smallest to largest:
 <div align="center">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="assets/logo-light.webp">
-    <img src="assets/logo-dark.webp" alt="Lineari logo" width="360">
+    <img src="assets/logo-light (1).webp" alt="Lineari logo" width="360">
   </picture>
 </div>
 
