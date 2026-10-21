@@ -110,11 +110,11 @@ def set_auth_cookies(
         settings.refresh_cookie_name,
         refresh_token,
         max_age=int((refresh_expires_at - datetime.now(timezone.utc)).total_seconds()),
-        path="/auth",
+        path=settings.refresh_cookie_path,
         **common,
     )
 
 
 def clear_auth_cookies(response: Response) -> None:
     response.delete_cookie(settings.access_cookie_name, path="/", domain=settings.cookie_domain)
-    response.delete_cookie(settings.refresh_cookie_name, path="/auth", domain=settings.cookie_domain)
+    response.delete_cookie(settings.refresh_cookie_name, path=settings.refresh_cookie_path, domain=settings.cookie_domain)
