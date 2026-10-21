@@ -189,19 +189,78 @@ variables in `index.css`. All Tailwind utilities (`border-border`,
 `bg-background`, `text-muted-foreground`) are generated from those variables
 via `@theme inline`, so nothing hard-codes a colour.
 
-## Deployment checklist
+## Deployment
 
-The app is ready to deploy but URLs aren't yet provisioned:
+I deployed Lineari on three free services. The live app is at [LIVE_URL], and the API health check is at [LIVE_URL]/api/health.
 
-1. **Database** — managed Postgres (Neon, Supabase, Railway) with
-   `DATABASE_URL` exported.
-2. **Backend** — container running `uvicorn app.main:app` with
-   `CORS_ORIGINS` set to the frontend URL and `COOKIE_SECURE=true`.
-3. **Frontend** — `yarn build`, served as static files; `VITE_API_URL`
-   points at the backend.
-4. **Migrations** — run once at deploy: `uv run alembic upgrade head`.
+### Hosting layout
 
-See [Cross-origin cookies](#cross-origin-cookies) for the cookie caveat.
+| Layer    | Host                          | Notes |
+|----------|-------------------------------|-------|
+| Frontend | Vercel (Hobby plan)           | Static Vite build, plus a proxy rule for the API |
+| API      | Render (free web service)     | FastAPI in a Docker container |
+| Database | Neon                          | Managed PostgreSQL |
+
+### Why the browser only talks to one address
+
+My sessions use `SameSite=Lax` cookies, and browsers only send those between pages on the same site. If I had put the frontend and the API on two different free hostnames, people would have signed in successfully and then lost the session on every request. I also found that `/employees` and `/organisation` are both React routes and API paths, so one hostname could not serve both without a prefix.
+
+To solve both problems, I made Vercel the only public address. Its `web/vercel.json` rewrites `/api/*` to Render and removes the `/api` prefix on the way, so the API still sees `/auth/login` and `/employees`. Every other path falls back to `index.html`, which keeps React Router working when a page is refreshed.
+
+```json
+{
+  "rewrites": [
+    { "source": "/api/:path*", "destination": "[RENDER_URL]/:path*" },
+    { "source": "/(.*)", "destination": "/index.html" }
+  ]
+}
+```
+
+### Refresh cookie path
+
+The refresh cookie was originally limited to the path `/auth`. Behind the proxy, the browser calls `/api/auth/refresh`, so that cookie would never have been sent. I made the path configurable with `REFRESH_COOKIE_PATH`. It defaults to `/auth` for local development and is set to `/api/auth` in production. In production the cookie shape is therefore:
+
+```text
+lineari_access   HttpOnly; Secure; Path=/;          SameSite=Lax
+lineari_refresh  HttpOnly; Secure; Path=/api/auth;  SameSite=Lax
+```
+
+### Configuration
+
+Render environment variables (values are never committed to the repository):
+
+| Variable              | Purpose |
+|-----------------------|---------|
+| `DATABASE_URL`        | Neon connection string, `postgresql+psycopg://...?sslmode=require` |
+| `JWT_SECRET_KEY`      | Long random string used to sign access tokens |
+| `COOKIE_SECURE`       | `true`, because the site is served over HTTPS |
+| `REFRESH_COOKIE_PATH` | `/api/auth` |
+| `CORS_ORIGINS`        | The Vercel URL |
+
+Vercel environment variable: `VITE_API_URL=/api`, so the frontend calls the proxy instead of a hard-coded host.
+
+### Database setup
+
+The free Render instance has no shell, so I ran migrations and the seed script from my own machine against Neon, using the direct (non-pooled) connection string:
+
+```bash
+cd api
+uv run alembic upgrade head
+uv run python seed.py
+```
+
+After signing up in the live app, I promoted my account to admin with `uv run python -m scripts.promote <email>`.
+
+### Known limitations
+
+- **Cold starts.** Render's free tier puts the API to sleep after 15 minutes without traffic, and waking it takes about a minute. The first request after a quiet period is slow. Opening `/api/health` and waiting briefly warms it up.
+- **Database wake-up.** Neon can also suspend idle compute, which adds a short delay to the first query.
+- **Free tier terms.** These limits were correct when I deployed in October 2026 and may change.
+- **No local storage.** Free Render instances lose local files on restart. This does not affect Lineari, because all data lives in Neon.
+
+### What I would change with a budget
+
+I would move the API to an always-on instance and add a custom domain, so the API could have its own subdomain and the proxy rule would no longer be needed.
 
 ## Known trade-offs
 
