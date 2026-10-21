@@ -21,6 +21,7 @@ class AuthSettings(BaseSettings):
     access_cookie_name: str = "lineari_access"
     refresh_cookie_name: str = "lineari_refresh"
     bcrypt_rounds: int = 12
+    refresh_cookie_path: str = "/auth"
 
 
 @lru_cache
