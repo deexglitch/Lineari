@@ -375,6 +375,8 @@ components:
             - self_manager
             - circular_reporting_line
             - has_direct_reports
+            - unauthorized
+            - invalid_credentials
         message:
           type: string
         details:
