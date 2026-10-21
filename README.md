@@ -233,7 +233,6 @@ Components are organised by responsibility, from smallest to largest:
 
 ---
 
-
 ## License
 
 Private project. No license declared.
