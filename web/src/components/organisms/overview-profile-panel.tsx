@@ -179,6 +179,7 @@ const role = user?.role ? roleLabel : (me?.node.role ?? "Role unavailable");
                 "rounded-full bg-secondary font-bold text-foreground ring-1 ring-border hover:bg-[color-mix(in_srgb,var(--color-secondary),var(--color-foreground)_8%)]",
               )}
             >
+              <Users weight="bold" aria-hidden />
               Employees
               <ArrowRight weight="bold" aria-hidden />
             </Link>

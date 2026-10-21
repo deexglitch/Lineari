@@ -63,8 +63,7 @@ export function TopNav() {
             itemStyle="plain"
             hoverEffect="glide"
             indicator="pill"
-            barColor={dark ? "rgba(213, 227, 223, 0.10)" : "rgba(255, 255, 255, 0.85)"}
-            textColor={dark ? "#d5e3df" : "#2b1d3a"}
+            barColor={dark ? "rgba(213, 227, 223, 0.10)" : "rgba(234, 243, 240, 0.78)"}            textColor="var(--ink)"
             highlightColor="#0b6e6a"
             highlightTextColor="#ffffff"
             className="data-collapsed:justify-end!"

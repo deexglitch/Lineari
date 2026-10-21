@@ -1,23 +1,15 @@
-import { useEffect, useRef, type FormEvent, type ReactNode } from "react";
+import { useEffect, useRef, type FormEvent } from "react";
 import { UserPlus, X } from "@phosphor-icons/react";
 import { cn } from "@/lib/utils";
 import { useCreateEmployee } from "@/hooks/useCreateEmployee";
 import { FRIENDLY_ERRORS } from "@/lib/constants";
+import { inputClass } from "@/lib/constants";
+import { Field } from "@/components/molecules/employee-form-field";
 
 export type ManagerOption = { id: string; label: string };
 
 
-const inputClass =
-  "rounded-xl bg-[#e0d6ec]/10 px-3 py-2.5 text-base font-normal text-[#e0d6ec] ring-1 ring-[#e0d6ec]/25 outline-none placeholder:text-[#e0d6ec]/45 focus:ring-2 focus:ring-[#e0d6ec]/60 [color-scheme:dark]";
 
-function Field({ label, className, children }: { label: string; className?: string; children: ReactNode }) {
-  return (
-    <label className={cn("flex flex-col gap-1.5 text-sm font-semibold", className)}>
-      {label}
-      {children}
-    </label>
-  );
-}
 
 export function AddEmployeeDialog({
   open,

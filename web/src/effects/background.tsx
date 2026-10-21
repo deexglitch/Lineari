@@ -19,20 +19,20 @@ export function AppBackground() {
   return (
     <div aria-hidden className="pointer-events-none fixed inset-0 z-0">
       <Silk
-        color={dark ? "#0b6e6a" : "#0e857f"}
-        sheenColor={dark ? "#131615" : "#e7f2ef"}
+        color={dark ? "#0b6e6a" : "#3f9a93"}
+        sheenColor={dark ? "#131615" : "#bcd9d3"}
         speed={0.7}
-        scale={0.6}
-        depth={0.5}
+        scale={1.2}
+        depth={1.2}
         sheen={0.4}
-        glow={dark ? 0.6 : 0.3}
+        glow={dark ? 0.6 : 0.2}
         noiseIntensity={1}
         rotation={0}
         wave={1}
         ripple={1}
-        mouseInteraction={false}
+        mouseInteraction={true}
         clickRipple={false}
-        intro={false}
+        intro={true}
       />
     </div>
   );
