@@ -238,7 +238,7 @@ Components are organised by responsibility, from smallest to largest:
 <div align="center">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="assets/logo-light.webp">
-    <img src="assets/logo-light (1).webp" alt="Lineari logo" width="360">
+    <img src="assets/light_logo.png" alt="Lineari logo" width="360">
   </picture>
 </div>
 
