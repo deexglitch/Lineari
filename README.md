@@ -13,7 +13,12 @@
 
 **Create and manage employees, set reporting lines, explore the org chart visually, and keep employee information in one place.**
 
-[Technical architecture](docs/architecture/technical.md) · [User guide](docs/architecture/user-guide.md) · [Brand identity](docs/design/brand-identity)
+## Documentation
+
+- [User guide](docs/architecture/user-guide.md)
+- [Technical architecture](docs/architecture/technical.md)
+
+Live app: [LIVE_URL]
 
 </div>
 
