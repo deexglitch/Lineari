@@ -1,6 +1,5 @@
 import { useEffect, useRef, type FormEvent } from "react";
 import { UserPlus, X } from "@phosphor-icons/react";
-import { cn } from "@/lib/utils";
 import { useCreateEmployee } from "@/hooks/useCreateEmployee";
 import { FRIENDLY_ERRORS } from "@/lib/constants";
 import { inputClass } from "@/lib/constants";

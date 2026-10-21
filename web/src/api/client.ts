@@ -2,8 +2,6 @@ import createClient, { type Middleware } from 'openapi-fetch'
 import { refreshSession } from '@/lib/api'
 import type { paths } from './schema'
 
-
-
 // An expired access cookie gets one silent refresh, then the read is retried.
 const retryAfterRefresh: Middleware = {
   async onResponse({ request, response }) {
@@ -16,7 +14,9 @@ const retryAfterRefresh: Middleware = {
 
 const base = import.meta.env.VITE_API_URL ?? 'http://localhost:8000'
 
+// Every call made through this client is checked against the OpenAPI contract.
 export const api = createClient<paths>({
   baseUrl: base.startsWith('/') ? window.location.origin + base : base,
   credentials: 'include',
 })
+api.use(retryAfterRefresh)
