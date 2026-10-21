@@ -1,9 +1,12 @@
 import { useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
+import { List, TreeStructure } from "@phosphor-icons/react";
 import { OrganisationSearch } from "@/components/molecules/organisation-search";
 import { OrganisationTree } from "@/components/organisms/organisation-tree";
+import { OrganisationTreeGraph } from "@/components/organisms/organisation-tree-graph";
 import { countAll, depthOf, filterTree } from "@/lib/tree";
 import type { HierarchyNode } from "@/lib/types";
+import { cn } from "@/lib/utils";
 
 type OrganisationPageProps = {
   roots?: HierarchyNode[];
@@ -11,11 +14,31 @@ type OrganisationPageProps = {
   isError?: boolean;
 };
 
-/** Returns the path of nodes from the root down to the node with `id`, or null. */
-function pathTo(
-  nodes: HierarchyNode[],
-  id: string,
-): HierarchyNode[] | null {
+type ViewMode = "list" | "graph";
+
+const VIEW_KEY = "lineari_org_view";
+
+function usePersistedView(): [ViewMode, (v: ViewMode) => void] {
+  const [view, setView] = useState<ViewMode>(() => {
+    try {
+      const v = localStorage.getItem(VIEW_KEY);
+      return v === "graph" ? "graph" : "list";
+    } catch {
+      return "list";
+    }
+  });
+  const set = (v: ViewMode) => {
+    setView(v);
+    try {
+      localStorage.setItem(VIEW_KEY, v);
+    } catch {
+      // Ignore storage errors; the in-memory view still updates.
+    }
+  };
+  return [view, set];
+}
+
+function pathTo(nodes: HierarchyNode[], id: string): HierarchyNode[] | null {
   for (const node of nodes) {
     if (node.id === id) return [node];
     const deeper = pathTo(node.children, id);
@@ -24,7 +47,6 @@ function pathTo(
   return null;
 }
 
-/** Keeps only the branches that lead to the target id. */
 function pruneToPath(nodes: HierarchyNode[], id: string): HierarchyNode[] {
   const out: HierarchyNode[] = [];
   for (const node of nodes) {
@@ -38,16 +60,22 @@ function pruneToPath(nodes: HierarchyNode[], id: string): HierarchyNode[] {
   return out;
 }
 
+const VIEWS: { key: ViewMode; label: string; icon: React.ReactNode }[] = [
+  { key: "list", label: "List", icon: <List size={16} weight="bold" /> },
+  { key: "graph", label: "Graph", icon: <TreeStructure size={16} weight="bold" /> },
+];
+
 export default function OrganisationPage({ roots, isLoading, isError }: OrganisationPageProps) {
   const [params] = useSearchParams();
   const focusId = params.get("focus") ?? "";
   const [query, setQuery] = useState("");
+  const [view, setView] = usePersistedView();
   const tree = roots ?? [];
 
   const searched = useMemo(() => filterTree(tree, query), [tree, query]);
   const visible = useMemo(() => {
     if (!focusId) return searched;
-    if (query.trim()) return searched; // search wins over focus
+    if (query.trim()) return searched;
     return pruneToPath(searched, focusId);
   }, [searched, focusId, query]);
 
@@ -66,7 +94,7 @@ export default function OrganisationPage({ roots, isLoading, isError }: Organisa
             </h1>
             <p className="mt-5 max-w-lg text-base text-muted-foreground">
               {focusNode
-                ? `${focusNode.role}`
+                ? `${focusNode.role} · focused view. Clear the filter to see the whole tree.`
                 : "Open any manager to see their team. Search by name or role to jump to a person."}
             </p>
           </div>
@@ -90,15 +118,56 @@ export default function OrganisationPage({ roots, isLoading, isError }: Organisa
 
       <section className="glass-panel rounded-[2rem] text-foreground">
         <div className="space-y-5 p-4 md:p-6">
-          <OrganisationSearch value={query} onChange={setQuery} />
-          <OrganisationTree
-            roots={visible}
-            isLoading={isLoading}
-            isError={isError}
-            query={query}
-            focusId={focusId}
-            onClearSearch={() => setQuery("")}
-          />
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <OrganisationSearch value={query} onChange={setQuery} />
+
+            <div
+              role="tablist"
+              aria-label="Organisation view"
+              className="inline-flex shrink-0 items-center gap-1 rounded-full border border-border/60 bg-[color-mix(in_srgb,var(--color-card),transparent_40%)] p-1"
+            >
+              {VIEWS.map((v) => {
+                const active = v.key === view;
+                return (
+                  <button
+                    key={v.key}
+                    type="button"
+                    role="tab"
+                    aria-selected={active}
+                    onClick={() => setView(v.key)}
+                    className={cn(
+                      "inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-bold transition-colors",
+                      active
+                        ? "bg-primary text-primary-foreground"
+                        : "text-muted-foreground hover:text-foreground",
+                    )}
+                  >
+                    {v.icon}
+                    {v.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {view === "list" ? (
+            <OrganisationTree
+              roots={visible}
+              isLoading={isLoading}
+              isError={isError}
+              query={query}
+              focusId={focusId}
+              onClearSearch={() => setQuery("")}
+            />
+          ) : (
+            <OrganisationTreeGraph
+              roots={visible}
+              isLoading={isLoading}
+              isError={isError}
+              query={query}
+              onClearSearch={() => setQuery("")}
+            />
+          )}
         </div>
       </section>
     </div>

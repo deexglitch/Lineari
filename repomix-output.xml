@@ -103,17 +103,24 @@ web/
         employee-form-field.tsx
         employee-row.tsx
         nav-tab.tsx
+        org-chart.tsx
         organisation-search.tsx
+        person-row-table.tsx
         person-row.tsx
         section-card.tsx
         sign-out-button.tsx
         status-indicator.tsx
       organisms/
+        account-pasword-card.tsx
+        account-profile-card.tsx
         add-employee-form.tsx
         addemployeedialog.tsx
         delete-employee-dialog.tsx
+        edit-employee-dialog.tsx
         employee-table.tsx
         Org.css
+        organisation-tree-graph.tsx
+        organisation-tree-table.tsx
         organisation-tree.tsx
         overview-profile-panel.tsx
         overview-stats.tsx
@@ -144,6 +151,7 @@ web/
       useEmployees.ts
       useHierarchy.ts
       useTheme.ts
+      useUpdateEmployee.ts
     lib/
       api.ts
       constants.ts
@@ -152,6 +160,7 @@ web/
       types.ts
       utils.ts
     pages/
+      account-page.tsx
       employee-page.tsx
       login-page.tsx
       organisation-page.tsx
@@ -182,482 +191,236 @@ README.md
 <files>
 This section contains the contents of the repository's files.
 
-<file path="api/seed.py">
-"""
-Seed the Lineari database with a small reporting tree.
-
-Run from api/:
-    uv run python seed.py
-
-Safe to re-run: employees are only inserted if their email is not already present.
-"""
-
-from datetime import date
-from decimal import Decimal
-
-from sqlalchemy import select
-
-from app.db import SessionLocal
-from app.models import Employee
-
-# (name, surname, role, email, emp_no, dob, salary, manager_email_or_None)
-PEOPLE = [
-    ("Aisha",  "Patel",    "CEO",                "aisha.patel@lineari.dev",    "EMP-001", date(1978,  3, 12), "185000.00", None),
-    ("Rajesh", "Chetty",   "CTO",                "rajesh.chetty@lineari.dev",  "EMP-002", date(1982,  7,  4), "150000.00", "aisha.patel@lineari.dev"),
-    ("Lerato", "Dlamini",  "CFO",                "lerato.dlamini@lineari.dev", "EMP-003", date(1984, 11, 19), "145000.00", "aisha.patel@lineari.dev"),
-    ("Sipho",  "Mthembu",  "COO",                "sipho.mthembu@lineari.dev",  "EMP-004", date(1980,  5, 28), "148000.00", "aisha.patel@lineari.dev"),
-    ("Priya",  "Naidoo",   "Backend Engineer",   "priya.naidoo@lineari.dev",   "EMP-005", date(1990,  2, 14),  "78000.00", "rajesh.chetty@lineari.dev"),
-    ("Sam",    "Pillay",   "Frontend Engineer",  "sam.pillay@lineari.dev",     "EMP-006", date(1992,  9,  3),  "76000.00", "rajesh.chetty@lineari.dev"),
-    ("Kim",    "Moodley",  "QA Engineer",        "kim.moodley@lineari.dev",    "EMP-007", date(1994,  6, 21),  "68000.00", "rajesh.chetty@lineari.dev"),
-    ("Thabo",  "Nkosi",    "Accountant",         "thabo.nkosi@lineari.dev",    "EMP-008", date(1988, 12,  8),  "72000.00", "lerato.dlamini@lineari.dev"),
-    ("Naledi", "Khumalo",  "Financial Analyst",  "naledi.khumalo@lineari.dev", "EMP-009", date(1991,  4, 30),  "70000.00", "lerato.dlamini@lineari.dev"),
-    ("Zanele", "Zulu",     "Operations Lead",    "zanele.zulu@lineari.dev",    "EMP-010", date(1986, 10,  2),  "82000.00", "sipho.mthembu@lineari.dev"),
-    ("Aiden",  "Botha",    "Support Specialist", "aiden.botha@lineari.dev",    "EMP-011", date(1995,  8, 15),  "58000.00", "sipho.mthembu@lineari.dev"),
-]
-
-
-def main() -> None:
-    with SessionLocal() as db:
-        created = 0
-        by_email: dict[str, Employee] = {}
-
-        for name, surname, role, email, emp_no, dob, salary, manager_email in PEOPLE:
-            existing = db.scalar(select(Employee).where(Employee.email == email))
-            if existing:
-                by_email[email] = existing
-                continue
-
-            manager = None
-            if manager_email:
-                manager = by_email.get(manager_email) or db.scalar(
-                    select(Employee).where(Employee.email == manager_email)
-                )
-                if manager is None:
-                    raise SystemExit(
-                        f"Manager {manager_email} for {email} not found. "
-                        "Check the PEOPLE order — managers must appear before their reports."
-                    )
-
-            employee = Employee(
-                name=name,
-                surname=surname,
-                role=role,
-                email=email,
-                emp_number=emp_no,
-                birth_date=dob,
-                salary=Decimal(salary),
-                manager_id=manager.id if manager else None,
-            )
-            db.add(employee)
-            db.flush()  # assigns id
-            by_email[email] = employee
-            created += 1
-
-        db.commit()
-        print(f"Inserted {created} employees, skipped {len(PEOPLE) - created} (already existed).")
-
-
-if __name__ == "__main__":
-    main()
-</file>
-
-<file path="web/src/components/molecules/employee-row.tsx">
-import { Link } from "react-router-dom";
-import { PencilSimple, Trash, TreeStructure } from "@phosphor-icons/react";
+<file path="web/src/components/molecules/org-chart.tsx">
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/atoms/avatar";
-import { fullName, initials } from "@/lib/format";
-import type { Employee } from "@/hooks/useEmployeeDirectory";
+import { initials } from "@/lib/format";
+import type { HierarchyNode } from "@/lib/types";
+import { cn } from "@/lib/utils";
 
-export function EmployeeRow({
-  employee,
-  onEdit,
-  onDelete,
-}: {
-  employee: Employee;
-  onEdit?: (employee: Employee) => void;
-  onDelete?: (employee: Employee) => void;
-}) {
+// Loosen the attributes type to match what react-d3-tree actually passes,
+// and use our own TreeNodeDatum shape on top of it.
+export type TreeNodeDatum = {
+  name: string;
+  attributes?: Record<string, string | number | boolean>;
+  children?: TreeNodeDatum[];
+};
+
+export function OrgChart({ nodeDatum }: { nodeDatum: TreeNodeDatum }) {
+  const role = String(nodeDatum.attributes?.role ?? "No role");
+  const avatarUrl = String(nodeDatum.attributes?.avatar_url ?? "");
+
+  const nameParts = nodeDatum.name.split(" ");
+  const fakeNode = {
+    name: nameParts[0] ?? "",
+    surname: nameParts.slice(1).join(" ") || "",
+  } as HierarchyNode;
+
   return (
-    <li className="grid grid-cols-1 items-center gap-3 rounded-2xl border border-border/60 bg-[color-mix(in_srgb,var(--color-card),transparent_40%)] px-4 py-3 md:grid-cols-[2.2fr_1.6fr_1.6fr_1fr_6rem] md:gap-4">
-      <div className="flex min-w-0 items-center gap-3">
-        <Avatar className="size-10 rounded-xl">
-          <AvatarImage src={employee.avatar_url} alt="" />
-          <AvatarFallback className="rounded-xl bg-primary/15 font-bold text-foreground ring-1 ring-border">
-            {initials(employee)}
+    <foreignObject x="-90" y="-55" width="180" height="110">
+      <div
+        {...{ xmlns: "http://www.w3.org/1999/xhtml" }}
+        className={cn(
+          "flex h-full w-full flex-col items-center justify-center rounded-2xl border border-border bg-card px-3 py-2 text-foreground shadow-xl",
+          "transition-colors hover:border-primary/50",
+        )}
+      >
+        <Avatar className="size-10 rounded-full ring-2 ring-primary/20">
+          <AvatarImage src={avatarUrl} alt="" />
+          <AvatarFallback className="bg-primary/15 text-sm font-bold text-foreground">
+            {initials(fakeNode)}
           </AvatarFallback>
         </Avatar>
-        <div className="min-w-0">
-          <p className="truncate font-bold leading-tight text-foreground">
-            {fullName(employee)}
-          </p>
-          <p className="truncate text-xs text-muted-foreground">
-            {employee.emp_number} · {employee.role}
-          </p>
+        <p className="mt-1.5 w-full truncate text-center text-xs font-bold leading-tight">
+          {nodeDatum.name}
+        </p>
+        <p className="w-full truncate text-center text-[10px] uppercase tracking-wider text-muted-foreground">
+          {role}
+        </p>
+      </div>
+    </foreignObject>
+  );
+}
+</file>
+
+<file path="web/src/components/molecules/person-row-table.tsx">
+import { useState } from "react";
+import { CaretRight } from "@phosphor-icons/react";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/atoms/avatar";
+import { fullName, initials } from "@/lib/format";
+import type { HierarchyNode } from "@/lib/types";
+import { cn } from "@/lib/utils";
+
+export function PersonRowTable({
+  node,
+  depth,
+  forceOpen,
+  highlightId,
+}: {
+  node: HierarchyNode;
+  depth: number;
+  forceOpen: boolean;
+  highlightId?: string;
+}) {
+  const [open, setOpen] = useState(depth < 1);
+  const hasChildren = node.children.length > 0;
+  const expanded = hasChildren && (open || forceOpen);
+  const reports = node.direct_report_count;
+  const highlighted = node.id === highlightId;
+
+  return (
+    <li>
+      <div className="flex items-start gap-2">
+        <button
+          type="button"
+          onClick={() => setOpen((v) => !v)}
+          disabled={!hasChildren}
+          aria-expanded={hasChildren ? expanded : undefined}
+          aria-label={
+            hasChildren
+              ? `${expanded ? "Collapse" : "Expand"} ${fullName(node)}'s reports`
+              : `${fullName(node)} has no reports`
+          }
+          className={cn(
+            "mt-3 grid size-7 shrink-0 place-items-center rounded-full text-muted-foreground transition-colors",
+            "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring/60",
+            hasChildren ? "hover:bg-secondary hover:text-foreground" : "opacity-0",
+          )}
+        >
+          <CaretRight
+            size={14}
+            weight="bold"
+            aria-hidden
+            className={cn("transition-transform duration-200", expanded && "rotate-90")}
+          />
+        </button>
+
+        <div
+          className={cn(
+            "mt-1 w-full overflow-hidden rounded-2xl border",
+            highlighted
+              ? "border-primary/50 bg-primary/10 ring-1 ring-primary/40"
+              : "border-border/60",
+          )}
+        >
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="bg-[color-mix(in_srgb,var(--color-card),transparent_60%)] text-xs font-bold uppercase tracking-[0.14em] text-muted-foreground">
+                <th className="px-3 py-1.5 text-left">Name</th>
+                <th className="hidden px-3 py-1.5 text-left sm:table-cell">Role</th>
+                <th className="hidden px-3 py-1.5 text-right sm:table-cell">Reports</th>
+                <th className="w-14 px-3 py-1.5 text-right">Avatar</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr className="border-t border-border/60">
+                <td className="px-3 py-2 text-left font-bold text-foreground">
+                  {fullName(node)}
+                </td>
+                <td className="hidden px-3 py-2 text-left text-muted-foreground sm:table-cell">
+                  {node.role}
+                </td>
+                <td className="hidden px-3 py-2 text-right tabular-nums text-muted-foreground sm:table-cell">
+                  {reports}
+                </td>
+                <td className="px-3 py-2 text-right">
+                  <Avatar className="ml-auto size-9 rounded-xl">
+                    <AvatarImage src={node.avatar_url} alt="" />
+                    <AvatarFallback className="rounded-xl bg-primary/15 font-bold text-foreground ring-1 ring-border">
+                      {initials(node)}
+                    </AvatarFallback>
+                  </Avatar>
+                </td>
+              </tr>
+            </tbody>
+          </table>
         </div>
       </div>
 
-      <div className="min-w-0 text-sm text-foreground">
-        <span className="text-xs uppercase tracking-[0.14em] text-muted-foreground md:hidden">
-          Role{" "}
-        </span>
-        {employee.role}
-      </div>
-
-      <div className="min-w-0 text-sm text-muted-foreground">
-        <span className="text-xs uppercase tracking-[0.14em] md:hidden">Manager </span>
-        {employee.manager_name ?? "—"}
-      </div>
-
-      <div className="min-w-0 truncate text-sm text-muted-foreground">
-        <span className="text-xs uppercase tracking-[0.14em] md:hidden">Email </span>
-        {employee.email}
-      </div>
-
-      <div className="flex items-center gap-1 md:justify-end">
-        <Link
-          to={`/organisation?focus=${employee.id}`}
-          className="grid size-8 place-items-center rounded-full text-muted-foreground hover:bg-secondary hover:text-foreground"
-          aria-label={`View ${fullName(employee)} in the organisation`}
-          title="View in organisation"
-        >
-          <TreeStructure size={16} weight="bold" aria-hidden />
-        </Link>
-        <button
-          type="button"
-          onClick={() => onEdit?.(employee)}
-          className="grid size-8 place-items-center rounded-full text-muted-foreground hover:bg-secondary hover:text-foreground"
-          aria-label={`Edit ${fullName(employee)}`}
-          title="Edit"
-        >
-          <PencilSimple size={16} weight="bold" aria-hidden />
-        </button>
-        <button
-          type="button"
-          onClick={() => onDelete?.(employee)}
-          className="grid size-8 place-items-center rounded-full text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
-          aria-label={`Delete ${fullName(employee)}`}
-          title="Delete"
-        >
-          <Trash size={16} weight="bold" aria-hidden />
-        </button>
-      </div>
+      {expanded && (
+        <ul className="ml-8 mt-2 space-y-2 border-l border-border/60 pl-3">
+          {node.children.map((child) => (
+            <PersonRowTable
+              key={child.id}
+              node={child}
+              depth={depth + 1}
+              forceOpen={forceOpen}
+              highlightId={highlightId}
+            />
+          ))}
+        </ul>
+      )}
     </li>
   );
 }
 </file>
 
-<file path="web/src/components/organisms/delete-employee-dialog.tsx">
-import { useEffect, useMemo, useRef, useState } from "react";
-import { Trash, X } from "@phosphor-icons/react";
-import { FRIENDLY_ERRORS } from "@/lib/constants";
-import { useDeleteEmployee } from "@/hooks/useDeleteEmployee";
-import type { Employee } from "@/hooks/useEmployeeDirectory";
-import { cn } from "@/lib/utils";
-
-export function DeleteEmployeeDialog({
-  employee,
-  all,
-  onClose,
-}: {
-  employee: Employee | null;
-  all: Employee[];
-  onClose: () => void;
-}) {
-  const dialogRef = useRef<HTMLDialogElement>(null);
-  const remove = useDeleteEmployee();
-  const [mode, setMode] = useState<"none" | "reassign">("none");
-  const [managerId, setManagerId] = useState<string>("");
-
-  const open = employee !== null;
-
-  useEffect(() => {
-    const dialog = dialogRef.current;
-    if (!dialog) return;
-    if (open && !dialog.open) dialog.showModal();
-    if (!open && dialog.open) dialog.close();
-  }, [open]);
-
-  useEffect(() => {
-    if (!employee) return;
-    setMode("none");
-    setManagerId("");
-    remove.reset();
-  }, [employee?.id]);
-
-  const reports = useMemo(
-    () => (employee ? all.filter((e) => e.manager_id === employee.id) : []),
-    [employee, all],
-  );
-
-  const forbidden = useMemo(() => {
-    const set = new Set<string>();
-    if (!employee) return set;
-    set.add(employee.id);
-    let frontier = [employee.id];
-    while (frontier.length) {
-      const next: string[] = [];
-      for (const e of all) {
-        if (e.manager_id && frontier.includes(e.manager_id)) {
-          if (!set.has(e.id)) {
-            set.add(e.id);
-            next.push(e.id);
-          }
-        }
-      }
-      frontier = next;
-    }
-    return set;
-  }, [employee, all]);
-
-  const managerOptions = useMemo(
-    () => all.filter((e) => !forbidden.has(e.id)),
-    [all, forbidden],
-  );
-
-  const close = () => {
-    remove.reset();
-    onClose();
-  };
-
-  const submit = () => {
-    if (!employee) return;
-    remove.mutate(
-      {
-        id: employee.id,
-        reassign_reports_to: mode === "reassign" ? managerId || null : null,
-        reassign_to_none: mode === "none" && reports.length > 0,
-      },
-      { onSuccess: close },
-    );
-  };
-
-  const error = remove.error
-    ? (FRIENDLY_ERRORS[remove.error.code ?? ""] ?? remove.error.message)
-    : null;
-
-  const canSubmit =
-    !remove.isPending &&
-    (reports.length === 0 || mode === "none" || (mode === "reassign" && managerId));
-
-  return (
-    <dialog
-      ref={dialogRef}
-      onClose={close}
-      onClick={(e) => e.target === e.currentTarget && close()}
-      aria-labelledby="delete-employee-title"
-      className="m-auto w-[min(34rem,calc(100%-2rem))] max-h-[calc(100%-2rem)] overflow-y-auto rounded-[2rem] bg-[color-mix(in_srgb,var(--color-card),var(--color-background)_40%)] p-0 text-foreground shadow-2xl ring-1 ring-border backdrop:bg-black/60 backdrop:backdrop-blur-sm"
-    >
-      <div className="p-6 md:p-8">
-        <div className="flex items-start justify-between gap-4">
-          <h2 id="delete-employee-title" className="text-2xl font-extrabold tracking-tight">
-            Delete employee
-          </h2>
-          <button
-            type="button"
-            onClick={close}
-            aria-label="Close"
-            className="grid size-9 place-items-center rounded-full hover:bg-secondary focus-visible:outline-2 focus-visible:outline-ring"
-          >
-            <X size={18} weight="bold" aria-hidden />
-          </button>
-        </div>
-
-        {employee && (
-          <p className="mt-3 text-sm text-muted-foreground">
-            You are about to permanently delete{" "}
-            <span className="font-bold text-foreground">
-              {employee.name} {employee.surname}
-            </span>{" "}
-            ({employee.role}). This cannot be undone.
-          </p>
-        )}
-
-        {reports.length > 0 && (
-          <div className="mt-5 space-y-3">
-            <p className="text-sm font-bold text-foreground">
-              This person has {reports.length}{" "}
-              {reports.length === 1 ? "direct report" : "direct reports"}. What should happen to
-              them?
-            </p>
-
-            <label
-              className={cn(
-                "flex cursor-pointer items-start gap-3 rounded-2xl border px-4 py-3",
-                mode === "none" ? "border-primary bg-primary/5" : "border-border/60",
-              )}
-            >
-              <input
-                type="radio"
-                name="delete-mode"
-                checked={mode === "none"}
-                onChange={() => setMode("none")}
-                className="mt-0.5 accent-[var(--color-primary)]"
-              />
-              <span>
-                <span className="block text-sm font-bold text-foreground">
-                  Leave them with no manager
-                </span>
-                <span className="block text-xs text-muted-foreground">
-                  They stay in the directory as top-level employees.
-                </span>
-              </span>
-            </label>
-
-            <label
-              className={cn(
-                "flex cursor-pointer items-start gap-3 rounded-2xl border px-4 py-3",
-                mode === "reassign" ? "border-primary bg-primary/5" : "border-border/60",
-              )}
-            >
-              <input
-                type="radio"
-                name="delete-mode"
-                checked={mode === "reassign"}
-                onChange={() => setMode("reassign")}
-                className="mt-0.5 accent-[var(--color-primary)]"
-              />
-              <span className="flex-1">
-                <span className="block text-sm font-bold text-foreground">
-                  Move them to another manager
-                </span>
-                <span className="block text-xs text-muted-foreground">
-                  Pick someone in the directory who doesn't sit under this employee.
-                </span>
-                <select
-                  value={managerId}
-                  onChange={(e) => setManagerId(e.target.value)}
-                  disabled={mode !== "reassign"}
-                  className="mt-2 w-full rounded-xl border border-border bg-background px-3 py-2 text-sm text-foreground disabled:opacity-50"
-                >
-                  <option value="">Choose a manager…</option>
-                  {managerOptions.map((m) => (
-                    <option key={m.id} value={m.id}>
-                      {m.name} {m.surname} — {m.role}
-                    </option>
-                  ))}
-                </select>
-              </span>
-            </label>
-          </div>
-        )}
-
-        {error && (
-          <p
-            role="alert"
-            className="mt-4 rounded-xl bg-destructive/10 px-4 py-3 text-sm font-semibold text-destructive ring-1 ring-destructive/30"
-          >
-            {error}
-          </p>
-        )}
-
-        <div className="mt-6 flex flex-wrap justify-end gap-3">
-          <button
-            type="button"
-            onClick={close}
-            className="rounded-full px-5 py-2.5 font-bold ring-1 ring-border hover:bg-secondary focus-visible:outline-2 focus-visible:outline-ring"
-          >
-            Cancel
-          </button>
-          <button
-            type="button"
-            onClick={submit}
-            disabled={!canSubmit}
-            className="inline-flex items-center gap-2 rounded-full bg-destructive px-5 py-2.5 font-bold text-white hover:brightness-110 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-destructive disabled:opacity-60"
-          >
-            <Trash weight="bold" aria-hidden />
-            {remove.isPending ? "Deleting…" : "Delete"}
-          </button>
-        </div>
-      </div>
-    </dialog>
-  );
-}
-</file>
-
-<file path="web/src/components/organisms/employee-table.tsx">
-import { ArrowsDownUp, Plus } from "@phosphor-icons/react";
-import { buttonVariants } from "@/components/atoms/button";
+<file path="web/src/components/organisms/organisation-tree-graph.tsx">
+import { useMemo, useState, useEffect, useRef } from "react";
+import Tree from "react-d3-tree";
+import type { HierarchyNode } from "@/lib/types";
+import { OrgChart, TreeNodeDatum } from "@/components/molecules/org-chart";
 import { Skeleton } from "@/components/atoms/skeleton";
-import { EmployeeRow } from "@/components/molecules/employee-row";
-import { cn } from "@/lib/utils";
-import type { Employee, SortKey, SortDir } from "@/hooks/useEmployeeDirectory";
 
-function SortHeader({
-  label,
-  k,
-  sortKey,
-  sortDir,
-  onSort,
-}: {
-  label: string;
-  k: SortKey;
-  sortKey: SortKey;
-  sortDir: SortDir;
-  onSort: (key: SortKey) => void;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={() => onSort(k)}
-      aria-sort={
-        sortKey === k ? (sortDir === "asc" ? "ascending" : "descending") : "none"
-      }
-      className="inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-[0.14em] text-muted-foreground hover:text-foreground"
-    >
-      {label}
-      <ArrowsDownUp
-        size={12}
-        weight="bold"
-        aria-hidden
-        className={cn(sortKey === k ? "text-foreground" : "opacity-40")}
-      />
-    </button>
-  );
+function mapToTreeData(node: HierarchyNode): TreeNodeDatum {
+  return {
+    name: `${node.name} ${node.surname}`,
+    attributes: {
+      id: node.id,
+      role: node.role,
+      avatar_url: node.avatar_url,
+    },
+    children: node.children?.map(mapToTreeData),
+  };
 }
 
-export function EmployeeTable({
-  rows,
-  total,
-  query,
+export function OrganisationTreeGraph({
+  roots,
   isLoading,
   isError,
-  sortKey,
-  sortDir,
-  onSort,
-  onClearSearch,
-  onAddFirst,
-  onDelete,
-  onEdit,
 }: {
-  rows: Employee[];
-  total: number;
-  query: string;
+  roots: HierarchyNode[];
   isLoading?: boolean;
   isError?: boolean;
-  sortKey: SortKey;
-  sortDir: SortDir;
-  onSort: (key: SortKey) => void;
-  onClearSearch: () => void;
-  onAddFirst: () => void;
-  onDelete?: (employee: Employee) => void;
-  onEdit?: (employee: Employee) => void;
 }) {
-  const searching = query.trim().length > 0;
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [dimensions, setDimensions] = useState({ width: 0, height: 600 });
+
+  useEffect(() => {
+    if (!containerRef.current) return;
+    const observer = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        setDimensions({ width: entry.contentRect.width, height: 600 });
+      }
+    });
+    observer.observe(containerRef.current);
+    return () => observer.disconnect();
+  }, []);
+
+  const treeData = useMemo<TreeNodeDatum | null>(() => {
+    if (roots.length === 1) return mapToTreeData(roots[0]);
+    if (roots.length > 1) {
+      return {
+        name: "Organisation",
+        attributes: { id: "root", role: "Root", avatar_url: "" },
+        children: roots.map(mapToTreeData),
+      };
+    }
+    return null;
+  }, [roots]);
 
   if (isLoading) {
     return (
-      <div className="space-y-2" aria-busy="true">
-        {[0, 1, 2, 3, 4].map((i) => (
-          <Skeleton key={i} className="h-14 w-full rounded-2xl bg-muted" />
-        ))}
+      <div className="grid gap-4 py-8 place-items-center" aria-busy="true">
+        <Skeleton className="h-20 w-48 rounded-2xl bg-muted" />
+        <Skeleton className="h-20 w-48 rounded-2xl bg-muted" />
       </div>
     );
   }
 
   if (isError) {
     return (
-      <div className="px-2 py-8">
-        <p className="text-lg font-bold">Couldn’t load the directory.</p>
+      <div className="px-2 py-8 text-center">
+        <p className="text-lg font-bold text-foreground">Couldn't load the organisation.</p>
         <p className="mt-1 text-sm text-muted-foreground">
           Check that the API is running at localhost:8000, then refresh.
         </p>
@@ -665,272 +428,126 @@ export function EmployeeTable({
     );
   }
 
-  if (rows.length === 0) {
+  if (!treeData) {
     return (
-      <div className="flex flex-col items-start gap-4 px-2 py-8">
-        <p className="text-lg font-bold">
-          {searching ? `No one matches “${query.trim()}”.` : "No employees yet."}
-        </p>
-        {searching ? (
-          <button
-            type="button"
-            onClick={onClearSearch}
-            className={cn(
-              buttonVariants({ size: "lg" }),
-              "rounded-full bg-primary font-bold text-primary-foreground hover:bg-[color-mix(in_srgb,var(--color-primary),white_12%)]",
-            )}
-          >
-            Clear search
-          </button>
-        ) : (
-          <button
-            type="button"
-            onClick={onAddFirst}
-            className={cn(
-              buttonVariants({ size: "lg" }),
-              "rounded-full bg-primary font-bold text-primary-foreground hover:bg-[color-mix(in_srgb,var(--color-primary),white_12%)]",
-            )}
-          >
-            <Plus weight="bold" aria-hidden />
-            Add the first employee
-          </button>
-        )}
+      <div className="px-2 py-8 text-center text-muted-foreground">
+        No employees to show yet.
       </div>
     );
   }
 
   return (
-    <>
-      <div className="hidden grid-cols-[2.2fr_1.6fr_1.6fr_1fr_6rem] items-center gap-4 px-4 pb-2 md:grid">
-        <SortHeader label="Name" k="surname" sortKey={sortKey} sortDir={sortDir} onSort={onSort} />
-        <SortHeader label="Role" k="role" sortKey={sortKey} sortDir={sortDir} onSort={onSort} />
-        <SortHeader
-          label="Manager"
-          k="manager_name"
-          sortKey={sortKey}
-          sortDir={sortDir}
-          onSort={onSort}
+    <div
+      ref={containerRef}
+      className="h-[600px] w-full overflow-auto rounded-2xl border border-border/40 bg-card"
+    >
+      {dimensions.width > 0 && (
+        <Tree
+          data={treeData}
+          orientation="vertical"
+          pathFunc="step"
+          translate={{ x: dimensions.width / 2, y: 80 }}
+          nodeSize={{ x: 220, y: 160 }}
+          separation={{ siblings: 1.2, nonSiblings: 1.5 }}
+          renderCustomNodeElement={(rd3tProps) => (
+            <OrgChart nodeDatum={rd3tProps.nodeDatum as TreeNodeDatum} />
+          )}
+          zoomable
+          draggable
+          collapsible
+          pathClassFunc={() => "stroke-primary/50 stroke-2"}
         />
-        <SortHeader label="Email" k="email" sortKey={sortKey} sortDir={sortDir} onSort={onSort} />
-        <span className="text-xs font-bold uppercase tracking-[0.14em] text-muted-foreground">
-          Actions
-        </span>
-      </div>
+      )}
+    </div>
+  );
+}
+</file>
 
-      <ul className="flex flex-col gap-2">
-        {rows.map((e) => (
-          <EmployeeRow
-            key={e.id}
-            employee={e}
-            onDelete={onDelete}
-            onEdit={onEdit}
+<file path="web/src/components/organisms/organisation-tree-table.tsx">
+import { Link } from "react-router-dom";
+import { Table } from "@phosphor-icons/react";
+import { buttonVariants } from "@/components/atoms/button";
+import { Skeleton } from "@/components/atoms/skeleton";
+import { PersonRowTable } from "@/components/molecules/person-row-table";
+import type { HierarchyNode } from "@/lib/types";
+import { cn } from "@/lib/utils";
+
+type OrganisationTreeTableProps = {
+  roots: HierarchyNode[];
+  isLoading?: boolean;
+  isError?: boolean;
+  query: string;
+  focusId?: string;
+  onClearSearch: () => void;
+};
+
+export function OrganisationTreeTable({
+  roots,
+  isLoading,
+  isError,
+  query,
+  focusId,
+  onClearSearch,
+}: OrganisationTreeTableProps) {
+  const searching = query.trim().length > 0;
+
+  const buttonClass = cn(
+    buttonVariants({ size: "lg" }),
+    "rounded-full bg-primary font-bold text-primary-foreground hover:bg-[color-mix(in_srgb,var(--color-primary),white_12%)]",
+  );
+
+  if (isLoading) {
+    return (
+      <div className="space-y-3" aria-busy="true">
+        {[0, 1, 2, 3].map((i) => (
+          <Skeleton key={i} className="h-20 w-full rounded-2xl bg-muted" />
+        ))}
+      </div>
+    );
+  }
+
+  if (isError) {
+    return (
+      <div className="px-2 py-6">
+        <p className="text-lg font-bold">Couldn't load the organisation.</p>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Check that the API is running at localhost:8000, then refresh.
+        </p>
+      </div>
+    );
+  }
+
+  if (roots.length > 0) {
+    return (
+      <ul aria-label="Organisation tree" className="space-y-2">
+        {roots.map((node) => (
+          <PersonRowTable
+            key={node.id}
+            node={node}
+            depth={0}
+            forceOpen={searching || Boolean(focusId)}
+            highlightId={focusId}
           />
         ))}
       </ul>
-
-      <p className="px-2 pt-2 text-xs text-muted-foreground">
-        {rows.length} of {total} {total === 1 ? "person" : "people"}
-        {searching ? " matching your search." : "."}
-      </p>
-    </>
-  );
-}
-</file>
-
-<file path="web/src/hooks/useDeleteEmployee.ts">
-import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { ApiError, fetchJson } from "@/lib/api";
-
-export function useDeleteEmployee() {
-  const queryClient = useQueryClient();
-  return useMutation<
-    void,
-    ApiError,
-    { id: string; reassign_reports_to?: string | null; reassign_to_none?: boolean }
-  >({
-    mutationFn: ({ id, reassign_reports_to, reassign_to_none }) => {
-      const params = new URLSearchParams();
-      if (reassign_reports_to) params.set("reassign_reports_to", reassign_reports_to);
-      if (reassign_to_none) params.set("reassign_to_none", "true");
-      const qs = params.toString();
-      return fetchJson<void>(`/employees/${id}${qs ? `?${qs}` : ""}`, {
-        method: "DELETE",
-      });
-    },
-    onSuccess: () => queryClient.invalidateQueries(),
-  });
-}
-</file>
-
-<file path="web/src/hooks/useEmployeeDirectory.ts">
-import { useMemo, useState } from "react";
-import type { components } from "@/api/schema";
-
-export type Employee = components["schemas"]["Employee"];
-export type SortKey = "name" | "surname" | "role" | "email" | "manager_name";
-export type SortDir = "asc" | "desc";
-
-export function useEmployeeDirectory(employees: Employee[]) {
-  const [query, setQuery] = useState("");
-  const [sortKey, setSortKey] = useState<SortKey>("surname");
-  const [sortDir, setSortDir] = useState<SortDir>("asc");
-
-  const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    const rows = q
-      ? employees.filter((e) =>
-          `${e.name} ${e.surname} ${e.role} ${e.email} ${e.emp_number}`
-            .toLowerCase()
-            .includes(q),
-        )
-      : employees;
-    return [...rows].sort((a, b) => {
-      const av = (a[sortKey] ?? "").toString().toLowerCase();
-      const bv = (b[sortKey] ?? "").toString().toLowerCase();
-      return sortDir === "asc" ? av.localeCompare(bv) : bv.localeCompare(av);
-    });
-  }, [employees, query, sortKey, sortDir]);
-
-  const managers = useMemo(
-    () =>
-      employees.map((e) => ({
-        id: e.id,
-        label: `${e.name} ${e.surname} — ${e.role}`,
-      })),
-    [employees],
-  );
-
-  const toggleSort = (key: SortKey) => {
-    if (key === sortKey) {
-      setSortDir((d) => (d === "asc" ? "desc" : "asc"));
-    } else {
-      setSortKey(key);
-      setSortDir("asc");
-    }
-  };
-
-  return { query, setQuery, sortKey, sortDir, toggleSort, filtered, managers };
-}
-</file>
-
-<file path="web/src/pages/employee-page.tsx">
-import { useState } from "react";
-import { Link } from "react-router-dom";
-import { MagnifyingGlass, Plus, TreeStructure } from "@phosphor-icons/react";
-import { buttonVariants } from "@/components/atoms/button";
-import { AddEmployeeDialog } from "@/components/organisms/addemployeedialog";
-import { DeleteEmployeeDialog } from "@/components/organisms/delete-employee-dialog";
-import { EmployeeTable } from "@/components/organisms/employee-table";
-import { useEmployees } from "@/hooks/useEmployees";
-import {
-  useEmployeeDirectory,
-  type Employee,
-} from "@/hooks/useEmployeeDirectory";
-import { cn } from "@/lib/utils";
-
-export default function EmployeesPage() {
-  const { data, isLoading, isError } = useEmployees();
-  const directory = useEmployeeDirectory(data ?? []);
-  const [addOpen, setAddOpen] = useState(false);
-  const [deleting, setDeleting] = useState<Employee | null>(null);
+    );
+  }
 
   return (
-    <div className="space-y-4">
-      <section className="glass-panel rounded-[2rem] text-foreground">
-        <div className="flex flex-col gap-6 p-6 md:p-8 lg:flex-row lg:items-end lg:justify-between">
-          <div>
-            <p className="text-xs font-bold uppercase tracking-[0.18em] text-muted-foreground">
-              Directory
-            </p>
-            <h1 className="mt-2 max-w-xl text-4xl font-extrabold leading-[1.05] tracking-tight md:text-5xl">
-              Everyone, in one table.
-            </h1>
-            <p className="mt-3 max-w-lg text-base text-muted-foreground">
-              Search, sort, and keep the directory accurate. Add a person or jump into their
-              reporting line.
-            </p>
-          </div>
-          <div className="flex flex-wrap gap-3">
-            <button
-              type="button"
-              onClick={() => setAddOpen(true)}
-              className={cn(
-                buttonVariants({ size: "lg" }),
-                "rounded-full bg-primary font-bold text-primary-foreground hover:bg-[color-mix(in_srgb,var(--color-primary),white_12%)]",
-              )}
-            >
-              <Plus weight="bold" aria-hidden />
-              Add employee
-            </button>
-            <Link
-              to="/organisation"
-              className={cn(
-                buttonVariants({ size: "lg" }),
-                "rounded-full bg-secondary font-bold text-foreground ring-1 ring-border hover:bg-[color-mix(in_srgb,var(--color-secondary),var(--color-foreground)_8%)]",
-              )}
-            >
-              <TreeStructure weight="bold" aria-hidden />
-              View organisation
-            </Link>
-          </div>
-        </div>
-      </section>
-
-      <section className="glass-panel rounded-[2rem] text-foreground">
-        <div className="space-y-4 p-4 md:p-6">
-          <label className="flex items-center gap-3 rounded-full border border-border/60 bg-[color-mix(in_srgb,var(--color-card),transparent_30%)] px-5 py-3 focus-within:ring-2 focus-within:ring-ring/50">
-            <MagnifyingGlass
-              size={20}
-              weight="bold"
-              aria-hidden
-              className="text-muted-foreground"
-            />
-            <span className="sr-only">Search employees</span>
-            <input
-              type="search"
-              value={directory.query}
-              onChange={(e) => directory.setQuery(e.target.value)}
-              placeholder="Search by name, role, email or employee number"
-              className="w-full bg-transparent text-base text-foreground outline-none placeholder:text-muted-foreground"
-            />
-            {directory.query && (
-              <button
-                type="button"
-                onClick={() => directory.setQuery("")}
-                className="text-xs font-bold text-muted-foreground hover:text-foreground"
-              >
-                Clear
-              </button>
-            )}
-          </label>
-
-          <EmployeeTable
-            rows={directory.filtered}
-            total={data?.length ?? 0}
-            query={directory.query}
-            isLoading={isLoading}
-            isError={isError}
-            sortKey={directory.sortKey}
-            sortDir={directory.sortDir}
-            onSort={directory.toggleSort}
-            onClearSearch={() => directory.setQuery("")}
-            onAddFirst={() => setAddOpen(true)}
-            onDelete={(employee) => setDeleting(employee)}
-          />
-        </div>
-      </section>
-
-      <AddEmployeeDialog
-        open={addOpen}
-        onClose={() => setAddOpen(false)}
-        managers={directory.managers}
-      />
-
-      <DeleteEmployeeDialog
-        employee={deleting}
-        all={data ?? []}
-        onClose={() => setDeleting(null)}
-      />
+    <div className="flex flex-col items-start gap-4 px-2 py-6">
+      <p className="text-lg font-bold">
+        {searching ? `No one matches "${query.trim()}".` : "No employees to show yet."}
+      </p>
+      {searching ? (
+        <button type="button" onClick={onClearSearch} className={buttonClass}>
+          Clear search
+        </button>
+      ) : (
+        <Link to="/employees" className={buttonClass}>
+          <Table weight="bold" aria-hidden />
+          Add employees
+        </Link>
+      )}
     </div>
   );
 }
@@ -1171,179 +788,6 @@ def get_auth_settings() -> AuthSettings:
 
 </file>
 
-<file path="api/app/routers/auth.py">
-from datetime import datetime, timedelta, timezone
-from typing import Annotated
-
-from fastapi import APIRouter, Cookie, Depends, Response
-from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
-from sqlalchemy import select, update
-from sqlalchemy.exc import IntegrityError
-from sqlalchemy.orm import Session
-
-from ..auth.deps import get_current_user
-from ..auth.models import RefreshToken, User
-from ..auth.security import (
-    DUMMY_HASH,
-    clear_auth_cookies,
-    create_access_token,
-    hash_password,
-    hash_refresh_token,
-    new_refresh_token,
-    set_auth_cookies,
-    validate_password_strength,
-    verify_password,
-)
-from ..auth.settings import get_auth_settings
-from ..db import get_db
-from ..errors import AppError
-
-settings = get_auth_settings()
-router = APIRouter(prefix="/auth", tags=["Auth"])
-
-Name = Annotated[str, Field(min_length=1, max_length=100)]
-
-
-class SignupRequest(BaseModel):
-    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
-
-    email: EmailStr
-    password: str
-    first_name: Name
-    last_name: Name
-
-    @field_validator("password")
-    @classmethod
-    def strong_password(cls, value: str) -> str:
-        return validate_password_strength(value)
-
-
-class LoginRequest(BaseModel):
-    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
-
-    email: EmailStr
-    # No strength rules here. They only matter when a password is chosen.
-    password: str = Field(min_length=1, max_length=128)
-
-
-class UserOut(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-
-    email: EmailStr
-    first_name: str
-    last_name: str
-
-
-class MessageOut(BaseModel):
-    message: str
-
-
-def _start_session(db: Session, user: User, response: Response) -> None:
-    refresh, refresh_hash = new_refresh_token()
-    expires = datetime.now(timezone.utc) + timedelta(days=settings.refresh_token_expire_days)
-    db.add(RefreshToken(user_id=user.id, token_hash=refresh_hash, expires_at=expires))
-    db.commit()
-    set_auth_cookies(
-        response,
-        access_token=create_access_token(user.id),
-        refresh_token=refresh,
-        refresh_expires_at=expires,
-    )
-
-
-@router.post("/signup", response_model=UserOut, status_code=201)
-def signup(payload: SignupRequest, response: Response, db: Annotated[Session, Depends(get_db)]):
-    email = payload.email.lower()
-    if db.scalar(select(User.id).where(User.email == email)):
-        raise AppError(409, "duplicate_email", "An account with this email already exists")
-
-    user = User(
-        email=email,
-        hashed_password=hash_password(payload.password),
-        first_name=payload.first_name,
-        last_name=payload.last_name,
-    )
-    db.add(user)
-    try:
-        db.commit()
-    except IntegrityError:  # two signups raced for the same email
-        db.rollback()
-        raise AppError(409, "duplicate_email", "An account with this email already exists")
-    db.refresh(user)
-
-    _start_session(db, user, response)
-    return user
-
-
-@router.post("/login", response_model=UserOut)
-def login(payload: LoginRequest, response: Response, db: Annotated[Session, Depends(get_db)]):
-    user = db.scalar(select(User).where(User.email == payload.email.lower()))
-    # Always run one bcrypt check, so response time does not reveal which emails exist.
-    password_ok = verify_password(payload.password, user.hashed_password if user else DUMMY_HASH)
-    if user is None or not password_ok or not user.is_active:
-        raise AppError(401, "invalid_credentials", "Invalid email or password")
-
-    _start_session(db, user, response)
-    return user
-
-
-@router.post("/refresh", response_model=MessageOut)
-def refresh(
-    response: Response,
-    db: Annotated[Session, Depends(get_db)],
-    refresh_token: Annotated[str | None, Cookie(alias=settings.refresh_cookie_name)] = None,
-):
-    if not refresh_token:
-        raise AppError(401, "unauthorized", "No refresh token provided")
-
-    stored = db.scalar(
-        select(RefreshToken).where(RefreshToken.token_hash == hash_refresh_token(refresh_token))
-    )
-    if stored is None:
-        raise AppError(401, "unauthorized", "Refresh token is invalid")
-
-    if stored.revoked:
-        # A used token came back, so it may have been stolen. End every session for this user.
-        db.execute(
-            update(RefreshToken).where(RefreshToken.user_id == stored.user_id).values(revoked=True)
-        )
-        db.commit()
-        raise AppError(401, "unauthorized", "Refresh token has already been used")
-
-    if stored.expires_at < datetime.now(timezone.utc):
-        raise AppError(401, "unauthorized", "Refresh token has expired")
-
-    user = db.get(User, stored.user_id)
-    if user is None or not user.is_active:
-        raise AppError(401, "unauthorized", "User no longer exists")
-
-    stored.revoked = True  # rotation: every refresh token works exactly once
-    _start_session(db, user, response)
-    return MessageOut(message="Session refreshed")
-
-
-@router.post("/logout", response_model=MessageOut)
-def logout(
-    response: Response,
-    db: Annotated[Session, Depends(get_db)],
-    refresh_token: Annotated[str | None, Cookie(alias=settings.refresh_cookie_name)] = None,
-):
-    if refresh_token:
-        db.execute(
-            update(RefreshToken)
-            .where(RefreshToken.token_hash == hash_refresh_token(refresh_token))
-            .values(revoked=True)
-        )
-        db.commit()
-    clear_auth_cookies(response)
-    return MessageOut(message="Signed out")
-
-
-@router.get("/me", response_model=UserOut)
-def me(user: Annotated[User, Depends(get_current_user)]):
-    return user
-</file>
-
 <file path="api/app/routers/hierarchy.py">
 # The organization as a nested tree, for the hierarchy view.
 # endpoint for tree related functionality
@@ -1420,15 +864,16 @@ settings = Settings()
 </file>
 
 <file path="api/app/gravatar.py">
-#builds gravatar URL from employee email
-#this should hash the the email 
+# Builds a Gravatar URL from an employee's email.
+# Gravatar hashes the trimmed, lowercased email with SHA-256.
 import hashlib
 
 
 def gravatar_url(email: str, size: int = 200) -> str:
-    """Build a Gravatar URL from an email. Falls back to a generated identicon."""
+    """Gravatar URL with d=404 so the frontend falls back to initials when
+    the email has no Gravatar account."""
     digest = hashlib.sha256(email.strip().lower().encode("utf-8")).hexdigest()
-    return f"https://www.gravatar.com/avatar/{digest}?s={size}&d=identicon"
+    return f"https://www.gravatar.com/avatar/{digest}?s={size}&d=404"
 </file>
 
 <file path="api/app/models.py">
@@ -1846,6 +1291,85 @@ datefmt = %H:%M:%S
 
 <file path="api/README.md">
 
+</file>
+
+<file path="api/seed.py">
+"""
+Seed the Lineari database with a small reporting tree.
+
+Run from api/:
+    uv run python seed.py
+
+Safe to re-run: employees are only inserted if their email is not already present.
+"""
+
+from datetime import date
+from decimal import Decimal
+
+from sqlalchemy import select
+
+from app.db import SessionLocal
+from app.models import Employee
+
+# (name, surname, role, email, emp_no, dob, salary, manager_email_or_None)
+PEOPLE = [
+    ("Aisha",  "Patel",    "CEO",                "aisha.patel@lineari.dev",    "EMP-001", date(1978,  3, 12), "185000.00", None),
+    ("Rajesh", "Chetty",   "CTO",                "rajesh.chetty@lineari.dev",  "EMP-002", date(1982,  7,  4), "150000.00", "aisha.patel@lineari.dev"),
+    ("Lerato", "Dlamini",  "CFO",                "lerato.dlamini@lineari.dev", "EMP-003", date(1984, 11, 19), "145000.00", "aisha.patel@lineari.dev"),
+    ("Sipho",  "Mthembu",  "COO",                "sipho.mthembu@lineari.dev",  "EMP-004", date(1980,  5, 28), "148000.00", "aisha.patel@lineari.dev"),
+    ("Priya",  "Naidoo",   "Backend Engineer",   "priya.naidoo@lineari.dev",   "EMP-005", date(1990,  2, 14),  "78000.00", "rajesh.chetty@lineari.dev"),
+    ("Sam",    "Pillay",   "Frontend Engineer",  "sam.pillay@lineari.dev",     "EMP-006", date(1992,  9,  3),  "76000.00", "rajesh.chetty@lineari.dev"),
+    ("Kim",    "Moodley",  "QA Engineer",        "kim.moodley@lineari.dev",    "EMP-007", date(1994,  6, 21),  "68000.00", "rajesh.chetty@lineari.dev"),
+    ("Thabo",  "Nkosi",    "Accountant",         "thabo.nkosi@lineari.dev",    "EMP-008", date(1988, 12,  8),  "72000.00", "lerato.dlamini@lineari.dev"),
+    ("Naledi", "Khumalo",  "Financial Analyst",  "naledi.khumalo@lineari.dev", "EMP-009", date(1991,  4, 30),  "70000.00", "lerato.dlamini@lineari.dev"),
+    ("Zanele", "Zulu",     "Operations Lead",    "zanele.zulu@lineari.dev",    "EMP-010", date(1986, 10,  2),  "82000.00", "sipho.mthembu@lineari.dev"),
+    ("Aiden",  "Botha",    "Support Specialist", "aiden.botha@lineari.dev",    "EMP-011", date(1995,  8, 15),  "58000.00", "sipho.mthembu@lineari.dev"),
+]
+
+
+def main() -> None:
+    with SessionLocal() as db:
+        created = 0
+        by_email: dict[str, Employee] = {}
+
+        for name, surname, role, email, emp_no, dob, salary, manager_email in PEOPLE:
+            existing = db.scalar(select(Employee).where(Employee.email == email))
+            if existing:
+                by_email[email] = existing
+                continue
+
+            manager = None
+            if manager_email:
+                manager = by_email.get(manager_email) or db.scalar(
+                    select(Employee).where(Employee.email == manager_email)
+                )
+                if manager is None:
+                    raise SystemExit(
+                        f"Manager {manager_email} for {email} not found. "
+                        "Check the PEOPLE order — managers must appear before their reports."
+                    )
+
+            employee = Employee(
+                name=name,
+                surname=surname,
+                role=role,
+                email=email,
+                emp_number=emp_no,
+                birth_date=dob,
+                salary=Decimal(salary),
+                manager_id=manager.id if manager else None,
+            )
+            db.add(employee)
+            db.flush()  # assigns id
+            by_email[email] = employee
+            created += 1
+
+        db.commit()
+        print(f"Inserted {created} employees, skipped {len(PEOPLE) - created} (already existed).")
+
+
+if __name__ == "__main__":
+    main()
 </file>
 
 <file path="web/src/api/schema.d.ts">
@@ -2633,6 +2157,91 @@ export function Field({
 }
 </file>
 
+<file path="web/src/components/molecules/employee-row.tsx">
+import { Link } from "react-router-dom";
+import { PencilSimple, Trash, TreeStructure } from "@phosphor-icons/react";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/atoms/avatar";
+import { fullName, initials } from "@/lib/format";
+import type { Employee } from "@/hooks/useEmployeeDirectory";
+
+export function EmployeeRow({
+  employee,
+  onEdit,
+  onDelete,
+}: {
+  employee: Employee;
+  onEdit?: (employee: Employee) => void;
+  onDelete?: (employee: Employee) => void;
+}) {
+  return (
+    <li className="grid grid-cols-1 items-center gap-3 rounded-2xl border border-border/60 bg-[color-mix(in_srgb,var(--color-card),transparent_40%)] px-4 py-3 md:grid-cols-[2.2fr_1.6fr_1.6fr_1fr_6rem] md:gap-4">
+      <div className="flex min-w-0 items-center gap-3">
+        <Avatar className="size-10 rounded-xl">
+          <AvatarImage src={employee.avatar_url} alt="" />
+          <AvatarFallback className="rounded-xl bg-primary/15 font-bold text-foreground ring-1 ring-border">
+            {initials(employee)}
+          </AvatarFallback>
+        </Avatar>
+        <div className="min-w-0">
+          <p className="truncate font-bold leading-tight text-foreground">
+            {fullName(employee)}
+          </p>
+          <p className="truncate text-xs text-muted-foreground">
+            {employee.emp_number} · {employee.role}
+          </p>
+        </div>
+      </div>
+
+      <div className="min-w-0 text-sm text-foreground">
+        <span className="text-xs uppercase tracking-[0.14em] text-muted-foreground md:hidden">
+          Role{" "}
+        </span>
+        {employee.role}
+      </div>
+
+      <div className="min-w-0 text-sm text-muted-foreground">
+        <span className="text-xs uppercase tracking-[0.14em] md:hidden">Manager </span>
+        {employee.manager_name ?? "—"}
+      </div>
+
+      <div className="min-w-0 truncate text-sm text-muted-foreground">
+        <span className="text-xs uppercase tracking-[0.14em] md:hidden">Email </span>
+        {employee.email}
+      </div>
+
+      <div className="flex items-center gap-1 md:justify-end">
+        <Link
+          to={`/organisation?focus=${employee.id}`}
+          className="grid size-8 place-items-center rounded-full text-muted-foreground hover:bg-secondary hover:text-foreground"
+          aria-label={`View ${fullName(employee)} in the organisation`}
+          title="View in organisation"
+        >
+          <TreeStructure size={16} weight="bold" aria-hidden />
+        </Link>
+        <button
+          type="button"
+          onClick={() => onEdit?.(employee)}
+          className="grid size-8 place-items-center rounded-full text-muted-foreground hover:bg-secondary hover:text-foreground"
+          aria-label={`Edit ${fullName(employee)}`}
+          title="Edit"
+        >
+          <PencilSimple size={16} weight="bold" aria-hidden />
+        </button>
+        <button
+          type="button"
+          onClick={() => onDelete?.(employee)}
+          className="grid size-8 place-items-center rounded-full text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+          aria-label={`Delete ${fullName(employee)}`}
+          title="Delete"
+        >
+          <Trash size={16} weight="bold" aria-hidden />
+        </button>
+      </div>
+    </li>
+  );
+}
+</file>
+
 <file path="web/src/components/molecules/organisation-search.tsx">
 import { MagnifyingGlass } from "@phosphor-icons/react";
 
@@ -2723,6 +2332,239 @@ export function StatusIndicator({
       {label}
     </span>
   )
+}
+</file>
+
+<file path="web/src/components/organisms/account-pasword-card.tsx">
+import { useState, type FormEvent } from "react";
+import { Check } from "@phosphor-icons/react";
+import { AuthField } from "@/components/molecules/auth-field";
+import { useChangePassword } from "@/hooks/useAuth";
+import { ApiError, messageFor } from "@/lib/api";
+
+export function AccountPasswordCard() {
+  const change = useChangePassword();
+  const [saved, setSaved] = useState(false);
+  const [mismatch, setMismatch] = useState<string | undefined>();
+
+  const fieldErrors =
+    change.error instanceof ApiError ? change.error.fieldErrors : {};
+
+  const generalError =
+    change.error && Object.keys(fieldErrors).length === 0
+      ? messageFor(change.error)
+      : null;
+
+  const onSubmit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setMismatch(undefined);
+
+    const form = event.currentTarget;
+    const data = new FormData(form);
+    const current = String(data.get("current_password") ?? "");
+    const next = String(data.get("new_password") ?? "");
+    const confirm = String(data.get("confirm_password") ?? "");
+
+    if (next !== confirm) {
+      setMismatch("Passwords do not match");
+      return;
+    }
+
+    change.mutate(
+      { current_password: current, new_password: next },
+      {
+        onSuccess: () => {
+          form.reset();
+          setSaved(true);
+          setTimeout(() => setSaved(false), 2500);
+        },
+      },
+    );
+  };
+
+  return (
+    <section className="glass-panel rounded-[2rem] text-foreground">
+      <div className="p-6 md:p-8">
+        <h2 className="text-xl font-extrabold tracking-tight">Password</h2>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Choose a new password. Other devices stay signed in until their current session expires.
+        </p>
+
+        <form onSubmit={onSubmit} className="mt-6 flex flex-col gap-4">
+          <AuthField
+            label="Current password"
+            name="current_password"
+            type="password"
+            autoComplete="current-password"
+            required
+            error={fieldErrors.current_password}
+          />
+          <AuthField
+            label="New password"
+            name="new_password"
+            type="password"
+            autoComplete="new-password"
+            required
+            hint="At least 8 characters with upper and lower case letters, a number and a symbol."
+            error={fieldErrors.new_password}
+          />
+          <AuthField
+            label="Confirm new password"
+            name="confirm_password"
+            type="password"
+            autoComplete="new-password"
+            required
+            error={mismatch}
+          />
+
+          {generalError && (
+            <p
+              role="alert"
+              className="rounded-xl bg-destructive/10 px-4 py-3 text-sm font-semibold text-destructive ring-1 ring-destructive/30"
+            >
+              {generalError}
+            </p>
+          )}
+
+          <div className="flex flex-wrap items-center justify-end gap-3">
+            {saved && (
+              <span className="inline-flex items-center gap-1.5 text-sm font-semibold text-primary">
+                <Check size={16} weight="bold" aria-hidden />
+                Password updated
+              </span>
+            )}
+            <button
+              type="submit"
+              disabled={change.isPending}
+              className="rounded-full bg-primary px-5 py-2.5 font-bold text-primary-foreground hover:bg-[color-mix(in_srgb,var(--color-primary),white_12%)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:opacity-60"
+            >
+              {change.isPending ? "Updating…" : "Update password"}
+            </button>
+          </div>
+        </form>
+      </div>
+    </section>
+  );
+}
+</file>
+
+<file path="web/src/components/organisms/account-profile-card.tsx">
+import { useState, type FormEvent } from "react";
+import { Check } from "@phosphor-icons/react";
+import { AuthField } from "@/components/molecules/auth-field";
+import { useUpdateProfile } from "@/hooks/useAuth";
+import { ApiError, messageFor } from "@/lib/api";
+import type { AuthUser } from "@/hooks/useAuth";
+
+export function AccountProfileCard({ user }: { user: AuthUser }) {
+  const update = useUpdateProfile();
+  const [saved, setSaved] = useState(false);
+
+  const fieldErrors =
+    update.error instanceof ApiError ? update.error.fieldErrors : {};
+
+  const generalError =
+    update.error && Object.keys(fieldErrors).length === 0
+      ? messageFor(update.error)
+      : null;
+
+  const onSubmit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const data = new FormData(event.currentTarget);
+    const text = (key: string) => String(data.get(key) ?? "").trim();
+
+    const next = {
+      first_name: text("first_name"),
+      last_name: text("last_name"),
+      email: text("email"),
+    };
+
+    // Only send fields that actually changed; the backend uses exclude_unset.
+    const body: Record<string, string> = {};
+    if (next.first_name !== user.first_name) body.first_name = next.first_name;
+    if (next.last_name !== user.last_name) body.last_name = next.last_name;
+    if (next.email !== user.email) body.email = next.email;
+
+    if (Object.keys(body).length === 0) {
+      setSaved(true);
+      setTimeout(() => setSaved(false), 1500);
+      return;
+    }
+
+    update.mutate(body, {
+      onSuccess: () => {
+        setSaved(true);
+        setTimeout(() => setSaved(false), 1500);
+      },
+    });
+  };
+
+  return (
+    <section className="glass-panel rounded-[2rem] text-foreground">
+      <div className="p-6 md:p-8">
+        <h2 className="text-xl font-extrabold tracking-tight">Profile</h2>
+        <p className="mt-1 text-sm text-muted-foreground">
+          The name shown across Lineari and the email you use to sign in.
+        </p>
+
+        <form onSubmit={onSubmit} className="mt-6 grid gap-4 sm:grid-cols-2">
+          <AuthField
+            label="First name"
+            name="first_name"
+            defaultValue={user.first_name}
+            maxLength={100}
+            autoComplete="given-name"
+            required
+            error={fieldErrors.first_name}
+          />
+          <AuthField
+            label="Last name"
+            name="last_name"
+            defaultValue={user.last_name}
+            maxLength={100}
+            autoComplete="family-name"
+            required
+            error={fieldErrors.last_name}
+          />
+          <AuthField
+            label="Email"
+            name="email"
+            type="email"
+            defaultValue={user.email}
+            autoComplete="email"
+            className="sm:col-span-2"
+            required
+            error={fieldErrors.email}
+          />
+
+          {generalError && (
+            <p
+              role="alert"
+              className="rounded-xl bg-destructive/10 px-4 py-3 text-sm font-semibold text-destructive ring-1 ring-destructive/30 sm:col-span-2"
+            >
+              {generalError}
+            </p>
+          )}
+
+          <div className="mt-2 flex flex-wrap items-center justify-end gap-3 sm:col-span-2">
+            {saved && (
+              <span className="inline-flex items-center gap-1.5 text-sm font-semibold text-primary">
+                <Check size={16} weight="bold" aria-hidden />
+                Saved
+              </span>
+            )}
+            <button
+              type="submit"
+              disabled={update.isPending}
+              className="rounded-full bg-primary px-5 py-2.5 font-bold text-primary-foreground hover:bg-[color-mix(in_srgb,var(--color-primary),white_12%)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:opacity-60"
+            >
+              {update.isPending ? "Saving…" : "Save profile"}
+            </button>
+          </div>
+        </form>
+      </div>
+    </section>
+  );
 }
 </file>
 
@@ -2999,6 +2841,655 @@ export function AddEmployeeDialog({
 }
 </file>
 
+<file path="web/src/components/organisms/delete-employee-dialog.tsx">
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Trash, X } from "@phosphor-icons/react";
+import { FRIENDLY_ERRORS } from "@/lib/constants";
+import { useDeleteEmployee } from "@/hooks/useDeleteEmployee";
+import type { Employee } from "@/hooks/useEmployeeDirectory";
+import { cn } from "@/lib/utils";
+
+export function DeleteEmployeeDialog({
+  employee,
+  all,
+  onClose,
+}: {
+  employee: Employee | null;
+  all: Employee[];
+  onClose: () => void;
+}) {
+  const dialogRef = useRef<HTMLDialogElement>(null);
+  const remove = useDeleteEmployee();
+  const [mode, setMode] = useState<"none" | "reassign">("none");
+  const [managerId, setManagerId] = useState<string>("");
+
+  const open = employee !== null;
+
+  useEffect(() => {
+    const dialog = dialogRef.current;
+    if (!dialog) return;
+    if (open && !dialog.open) dialog.showModal();
+    if (!open && dialog.open) dialog.close();
+  }, [open]);
+
+  useEffect(() => {
+    if (!employee) return;
+    setMode("none");
+    setManagerId("");
+    remove.reset();
+  }, [employee?.id]);
+
+  const reports = useMemo(
+    () => (employee ? all.filter((e) => e.manager_id === employee.id) : []),
+    [employee, all],
+  );
+
+  const forbidden = useMemo(() => {
+    const set = new Set<string>();
+    if (!employee) return set;
+    set.add(employee.id);
+    let frontier = [employee.id];
+    while (frontier.length) {
+      const next: string[] = [];
+      for (const e of all) {
+        if (e.manager_id && frontier.includes(e.manager_id)) {
+          if (!set.has(e.id)) {
+            set.add(e.id);
+            next.push(e.id);
+          }
+        }
+      }
+      frontier = next;
+    }
+    return set;
+  }, [employee, all]);
+
+  const managerOptions = useMemo(
+    () => all.filter((e) => !forbidden.has(e.id)),
+    [all, forbidden],
+  );
+
+  const close = () => {
+    remove.reset();
+    onClose();
+  };
+
+  const submit = () => {
+    if (!employee) return;
+    remove.mutate(
+      {
+        id: employee.id,
+        reassign_reports_to: mode === "reassign" ? managerId || null : null,
+        reassign_to_none: mode === "none" && reports.length > 0,
+      },
+      { onSuccess: close },
+    );
+  };
+
+  const error = remove.error
+    ? (FRIENDLY_ERRORS[remove.error.code ?? ""] ?? remove.error.message)
+    : null;
+
+  const canSubmit =
+    !remove.isPending &&
+    (reports.length === 0 || mode === "none" || (mode === "reassign" && managerId));
+
+  return (
+    <dialog
+      ref={dialogRef}
+      onClose={close}
+      onClick={(e) => e.target === e.currentTarget && close()}
+      aria-labelledby="delete-employee-title"
+      className="m-auto w-[min(34rem,calc(100%-2rem))] max-h-[calc(100%-2rem)] overflow-y-auto rounded-[2rem] bg-[color-mix(in_srgb,var(--color-card),var(--color-background)_40%)] p-0 text-foreground shadow-2xl ring-1 ring-border backdrop:bg-black/60 backdrop:backdrop-blur-sm"
+    >
+      <div className="p-6 md:p-8">
+        <div className="flex items-start justify-between gap-4">
+          <h2 id="delete-employee-title" className="text-2xl font-extrabold tracking-tight">
+            Delete employee
+          </h2>
+          <button
+            type="button"
+            onClick={close}
+            aria-label="Close"
+            className="grid size-9 place-items-center rounded-full hover:bg-secondary focus-visible:outline-2 focus-visible:outline-ring"
+          >
+            <X size={18} weight="bold" aria-hidden />
+          </button>
+        </div>
+
+        {employee && (
+          <p className="mt-3 text-sm text-muted-foreground">
+            You are about to permanently delete{" "}
+            <span className="font-bold text-foreground">
+              {employee.name} {employee.surname}
+            </span>{" "}
+            ({employee.role}). This cannot be undone.
+          </p>
+        )}
+
+        {reports.length > 0 && (
+          <div className="mt-5 space-y-3">
+            <p className="text-sm font-bold text-foreground">
+              This person has {reports.length}{" "}
+              {reports.length === 1 ? "direct report" : "direct reports"}. What should happen to
+              them?
+            </p>
+
+            <label
+              className={cn(
+                "flex cursor-pointer items-start gap-3 rounded-2xl border px-4 py-3",
+                mode === "none" ? "border-primary bg-primary/5" : "border-border/60",
+              )}
+            >
+              <input
+                type="radio"
+                name="delete-mode"
+                checked={mode === "none"}
+                onChange={() => setMode("none")}
+                className="mt-0.5 accent-[var(--color-primary)]"
+              />
+              <span>
+                <span className="block text-sm font-bold text-foreground">
+                  Leave them with no manager
+                </span>
+                <span className="block text-xs text-muted-foreground">
+                  They stay in the directory as top-level employees.
+                </span>
+              </span>
+            </label>
+
+            <label
+              className={cn(
+                "flex cursor-pointer items-start gap-3 rounded-2xl border px-4 py-3",
+                mode === "reassign" ? "border-primary bg-primary/5" : "border-border/60",
+              )}
+            >
+              <input
+                type="radio"
+                name="delete-mode"
+                checked={mode === "reassign"}
+                onChange={() => setMode("reassign")}
+                className="mt-0.5 accent-[var(--color-primary)]"
+              />
+              <span className="flex-1">
+                <span className="block text-sm font-bold text-foreground">
+                  Move them to another manager
+                </span>
+                <span className="block text-xs text-muted-foreground">
+                  Pick someone in the directory who doesn't sit under this employee.
+                </span>
+                <select
+                  value={managerId}
+                  onChange={(e) => setManagerId(e.target.value)}
+                  disabled={mode !== "reassign"}
+                  className="mt-2 w-full rounded-xl border border-border bg-background px-3 py-2 text-sm text-foreground disabled:opacity-50"
+                >
+                  <option value="">Choose a manager…</option>
+                  {managerOptions.map((m) => (
+                    <option key={m.id} value={m.id}>
+                      {m.name} {m.surname} — {m.role}
+                    </option>
+                  ))}
+                </select>
+              </span>
+            </label>
+          </div>
+        )}
+
+        {error && (
+          <p
+            role="alert"
+            className="mt-4 rounded-xl bg-destructive/10 px-4 py-3 text-sm font-semibold text-destructive ring-1 ring-destructive/30"
+          >
+            {error}
+          </p>
+        )}
+
+        <div className="mt-6 flex flex-wrap justify-end gap-3">
+          <button
+            type="button"
+            onClick={close}
+            className="rounded-full px-5 py-2.5 font-bold ring-1 ring-border hover:bg-secondary focus-visible:outline-2 focus-visible:outline-ring"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={submit}
+            disabled={!canSubmit}
+            className="inline-flex items-center gap-2 rounded-full bg-destructive px-5 py-2.5 font-bold text-white hover:brightness-110 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-destructive disabled:opacity-60"
+          >
+            <Trash weight="bold" aria-hidden />
+            {remove.isPending ? "Deleting…" : "Delete"}
+          </button>
+        </div>
+      </div>
+    </dialog>
+  );
+}
+</file>
+
+<file path="web/src/components/organisms/edit-employee-dialog.tsx">
+import { useEffect, useRef, type FormEvent, type ReactNode } from "react";
+import { PencilSimple, X } from "@phosphor-icons/react";
+import { cn } from "@/lib/utils";
+import { useUpdateEmployee } from "@/hooks/useUpdateEmployee";
+import type { Employee } from "@/hooks/useEmployeeDirectory";
+
+export type ManagerOption = { id: string; label: string };
+
+const FRIENDLY_ERRORS: Record<string, string> = {
+  duplicate_email: "That email address is already used by another employee.",
+  duplicate_employee_number: "That employee number is already in use.",
+  not_found: "The selected manager no longer exists. Pick another one.",
+  self_manager: "An employee cannot be their own manager.",
+  circular_reporting_line: "That would create a circular reporting line.",
+};
+
+const inputClass =
+  "rounded-xl border border-border bg-background px-3 py-2.5 text-base text-foreground outline-none placeholder:text-muted-foreground focus:ring-2 focus:ring-ring/60 [color-scheme:light] dark:[color-scheme:dark]";
+
+function Field({
+  label,
+  className,
+  children,
+}: {
+  label: string;
+  className?: string;
+  children: ReactNode;
+}) {
+  return (
+    <label className={cn("flex flex-col gap-1.5 text-sm font-semibold", className)}>
+      {label}
+      {children}
+    </label>
+  );
+}
+
+export function EditEmployeeDialog({
+  employee,
+  managers,
+  onClose,
+}: {
+  employee: Employee | null;
+  managers: ManagerOption[];
+  onClose: () => void;
+}) {
+  const dialogRef = useRef<HTMLDialogElement>(null);
+  const formRef = useRef<HTMLFormElement>(null);
+  const update = useUpdateEmployee();
+
+  const open = employee !== null;
+
+  useEffect(() => {
+    const dialog = dialogRef.current;
+    if (!dialog) return;
+    if (open && !dialog.open) dialog.showModal();
+    if (!open && dialog.open) dialog.close();
+  }, [open]);
+
+  useEffect(() => {
+    if (!employee) return;
+    update.reset();
+    formRef.current?.reset();
+  }, [employee?.id]);
+
+  const close = () => {
+    update.reset();
+    onClose();
+  };
+
+  const onSubmit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!employee) return;
+    const data = new FormData(event.currentTarget);
+    const text = (key: string) => String(data.get(key) ?? "").trim();
+    update.mutate(
+      {
+        id: employee.id,
+        body: {
+          name: text("name"),
+          surname: text("surname"),
+          email: text("email"),
+          birth_date: text("birth_date"),
+          emp_number: text("emp_number"),
+          salary: Number(text("salary")),
+          role: text("role"),
+          manager_id: text("manager_id") || null,
+        },
+      },
+      { onSuccess: close },
+    );
+  };
+
+  const error = update.error
+    ? (FRIENDLY_ERRORS[update.error.code ?? ""] ?? update.error.message)
+    : null;
+
+  // Exclude the person being edited from the manager list so they can't pick themselves.
+  const managerOptions = managers.filter((m) => m.id !== employee?.id);
+
+  return (
+    <dialog
+      ref={dialogRef}
+      onClose={close}
+      onClick={(e) => e.target === e.currentTarget && close()}
+      aria-labelledby="edit-employee-title"
+      className="m-auto w-[min(40rem,calc(100%-2rem))] max-h-[calc(100%-2rem)] overflow-y-auto rounded-[2rem] bg-card p-0 text-foreground shadow-2xl ring-1 ring-border backdrop:bg-black/50 backdrop:backdrop-blur-sm"
+    >
+      <div className="p-6 md:p-8">
+        <div className="flex items-start justify-between gap-4">
+          <h2 id="edit-employee-title" className="text-2xl font-extrabold tracking-tight">
+            Edit employee
+          </h2>
+          <button
+            type="button"
+            onClick={close}
+            aria-label="Close"
+            className="grid size-9 place-items-center rounded-full hover:bg-secondary focus-visible:outline-2 focus-visible:outline-ring"
+          >
+            <X size={18} weight="bold" aria-hidden />
+          </button>
+        </div>
+
+        {employee && (
+          <p className="mt-2 text-sm text-muted-foreground">
+            Editing{" "}
+            <span className="font-bold text-foreground">
+              {employee.name} {employee.surname}
+            </span>
+            . Only the fields you change are updated on the server.
+          </p>
+        )}
+
+        <form
+          ref={formRef}
+          onSubmit={onSubmit}
+          className="mt-6 grid gap-4 sm:grid-cols-2"
+          key={employee?.id ?? "none"}
+        >
+          <Field label="First name">
+            <input
+              name="name"
+              required
+              maxLength={100}
+              autoComplete="off"
+              defaultValue={employee?.name ?? ""}
+              className={inputClass}
+            />
+          </Field>
+          <Field label="Surname">
+            <input
+              name="surname"
+              required
+              maxLength={100}
+              autoComplete="off"
+              defaultValue={employee?.surname ?? ""}
+              className={inputClass}
+            />
+          </Field>
+          <Field label="Email" className="sm:col-span-2">
+            <input
+              name="email"
+              type="email"
+              required
+              autoComplete="off"
+              defaultValue={employee?.email ?? ""}
+              className={inputClass}
+            />
+          </Field>
+          <Field label="Employee number">
+            <input
+              name="emp_number"
+              required
+              maxLength={32}
+              autoComplete="off"
+              defaultValue={employee?.emp_number ?? ""}
+              className={inputClass}
+            />
+          </Field>
+          <Field label="Role">
+            <input
+              name="role"
+              required
+              maxLength={100}
+              autoComplete="off"
+              defaultValue={employee?.role ?? ""}
+              className={inputClass}
+            />
+          </Field>
+          <Field label="Date of birth">
+            <input
+              name="birth_date"
+              type="date"
+              required
+              defaultValue={employee?.birth_date ?? ""}
+              className={inputClass}
+            />
+          </Field>
+          <Field label="Salary">
+            <input
+              name="salary"
+              type="number"
+              required
+              min={0}
+              step="0.01"
+              inputMode="decimal"
+              defaultValue={employee?.salary ?? ""}
+              className={inputClass}
+            />
+          </Field>
+          <Field label="Reports to" className="sm:col-span-2">
+            <select
+              name="manager_id"
+              defaultValue={employee?.manager_id ?? ""}
+              className={inputClass}
+            >
+              <option value="">No manager</option>
+              {managerOptions.map((m) => (
+                <option key={m.id} value={m.id}>
+                  {m.label}
+                </option>
+              ))}
+            </select>
+          </Field>
+
+          {error && (
+            <p
+              role="alert"
+              className="rounded-xl bg-destructive/10 px-4 py-3 text-sm font-semibold text-destructive ring-1 ring-destructive/30 sm:col-span-2"
+            >
+              {error}
+            </p>
+          )}
+
+          <div className="mt-2 flex flex-wrap justify-end gap-3 sm:col-span-2">
+            <button
+              type="button"
+              onClick={close}
+              className="rounded-full px-5 py-2.5 font-bold ring-1 ring-border hover:bg-secondary focus-visible:outline-2 focus-visible:outline-ring"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={update.isPending}
+              className="inline-flex items-center gap-2 rounded-full bg-primary px-5 py-2.5 font-bold text-primary-foreground hover:bg-[color-mix(in_srgb,var(--color-primary),white_12%)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:opacity-60"
+            >
+              <PencilSimple weight="bold" aria-hidden />
+              {update.isPending ? "Saving…" : "Save changes"}
+            </button>
+          </div>
+        </form>
+      </div>
+    </dialog>
+  );
+}
+</file>
+
+<file path="web/src/components/organisms/employee-table.tsx">
+import { ArrowsDownUp, Plus } from "@phosphor-icons/react";
+import { buttonVariants } from "@/components/atoms/button";
+import { Skeleton } from "@/components/atoms/skeleton";
+import { EmployeeRow } from "@/components/molecules/employee-row";
+import { cn } from "@/lib/utils";
+import type { Employee, SortKey, SortDir } from "@/hooks/useEmployeeDirectory";
+
+function SortHeader({
+  label,
+  k,
+  sortKey,
+  sortDir,
+  onSort,
+}: {
+  label: string;
+  k: SortKey;
+  sortKey: SortKey;
+  sortDir: SortDir;
+  onSort: (key: SortKey) => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={() => onSort(k)}
+      aria-sort={
+        sortKey === k ? (sortDir === "asc" ? "ascending" : "descending") : "none"
+      }
+      className="inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-[0.14em] text-muted-foreground hover:text-foreground"
+    >
+      {label}
+      <ArrowsDownUp
+        size={12}
+        weight="bold"
+        aria-hidden
+        className={cn(sortKey === k ? "text-foreground" : "opacity-40")}
+      />
+    </button>
+  );
+}
+
+export function EmployeeTable({
+  rows,
+  total,
+  query,
+  isLoading,
+  isError,
+  sortKey,
+  sortDir,
+  onSort,
+  onClearSearch,
+  onAddFirst,
+  onDelete,
+  onEdit,
+}: {
+  rows: Employee[];
+  total: number;
+  query: string;
+  isLoading?: boolean;
+  isError?: boolean;
+  sortKey: SortKey;
+  sortDir: SortDir;
+  onSort: (key: SortKey) => void;
+  onClearSearch: () => void;
+  onAddFirst: () => void;
+  onDelete?: (employee: Employee) => void;
+  onEdit?: (employee: Employee) => void;
+}) {
+  const searching = query.trim().length > 0;
+
+  if (isLoading) {
+    return (
+      <div className="space-y-2" aria-busy="true">
+        {[0, 1, 2, 3, 4].map((i) => (
+          <Skeleton key={i} className="h-14 w-full rounded-2xl bg-muted" />
+        ))}
+      </div>
+    );
+  }
+
+  if (isError) {
+    return (
+      <div className="px-2 py-8">
+        <p className="text-lg font-bold">Couldn’t load the directory.</p>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Check that the API is running at localhost:8000, then refresh.
+        </p>
+      </div>
+    );
+  }
+
+  if (rows.length === 0) {
+    return (
+      <div className="flex flex-col items-start gap-4 px-2 py-8">
+        <p className="text-lg font-bold">
+          {searching ? `No one matches “${query.trim()}”.` : "No employees yet."}
+        </p>
+        {searching ? (
+          <button
+            type="button"
+            onClick={onClearSearch}
+            className={cn(
+              buttonVariants({ size: "lg" }),
+              "rounded-full bg-primary font-bold text-primary-foreground hover:bg-[color-mix(in_srgb,var(--color-primary),white_12%)]",
+            )}
+          >
+            Clear search
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={onAddFirst}
+            className={cn(
+              buttonVariants({ size: "lg" }),
+              "rounded-full bg-primary font-bold text-primary-foreground hover:bg-[color-mix(in_srgb,var(--color-primary),white_12%)]",
+            )}
+          >
+            <Plus weight="bold" aria-hidden />
+            Add the first employee
+          </button>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <>
+      <div className="hidden grid-cols-[2.2fr_1.6fr_1.6fr_1fr_6rem] items-center gap-4 px-4 pb-2 md:grid">
+        <SortHeader label="Name" k="surname" sortKey={sortKey} sortDir={sortDir} onSort={onSort} />
+        <SortHeader label="Role" k="role" sortKey={sortKey} sortDir={sortDir} onSort={onSort} />
+        <SortHeader
+          label="Manager"
+          k="manager_name"
+          sortKey={sortKey}
+          sortDir={sortDir}
+          onSort={onSort}
+        />
+        <SortHeader label="Email" k="email" sortKey={sortKey} sortDir={sortDir} onSort={onSort} />
+        <span className="text-xs font-bold uppercase tracking-[0.14em] text-muted-foreground">
+          Actions
+        </span>
+      </div>
+
+      <ul className="flex flex-col gap-2">
+        {rows.map((e) => (
+          <EmployeeRow
+            key={e.id}
+            employee={e}
+            onDelete={onDelete}
+            onEdit={onEdit}
+          />
+        ))}
+      </ul>
+
+      <p className="px-2 pt-2 text-xs text-muted-foreground">
+        {rows.length} of {total} {total === 1 ? "person" : "people"}
+        {searching ? " matching your search." : "."}
+      </p>
+    </>
+  );
+}
+</file>
+
 <file path="web/src/components/organisms/Org.css">
 /* Top-down org chart. Connectors are drawn with borders on each <li>. */
 .org-chart {
@@ -3081,429 +3572,6 @@ export function AddEmployeeDialog({
 .org-chart > ul > li::before,
 .org-chart > ul > li::after {
   display: none;
-}
-</file>
-
-<file path="web/src/components/organisms/organisation-tree.tsx">
-import { Link } from "react-router-dom";
-import { Table } from "@phosphor-icons/react";
-import { buttonVariants } from "@/components/atoms/button";
-import { Skeleton } from "@/components/atoms/skeleton";
-import { PersonRow } from "@/components/molecules/person-row";
-import type { HierarchyNode } from "@/lib/types";
-import { cn } from "@/lib/utils";
-
-type OrganisationTreeProps = {
-  roots: HierarchyNode[];
-  isLoading?: boolean;
-  isError?: boolean;
-  /** Search term used to force-open matches and to tune the empty message. */
-  query: string;
-  onClearSearch: () => void;
-};
-
-export function OrganisationTree({
-  roots,
-  isLoading,
-  isError,
-  query,
-  onClearSearch,
-}: OrganisationTreeProps) {
-  const searching = query.trim().length > 0;
-
-  const buttonClass = cn(
-    buttonVariants({ size: "lg" }),
-    "rounded-full bg-[#e0d6ec] font-bold text-[#1a1424] hover:bg-[#e0d6ec]/90",
-  );
-
-  if (isLoading) {
-    return (
-      <div className="space-y-3" aria-busy="true">
-        {[0, 1, 2, 3].map((i) => (
-          <Skeleton key={i} className="h-14 w-full rounded-2xl bg-[#e0d6ec]/15" />
-        ))}
-      </div>
-    );
-  }
-
-  if (isError) {
-    return (
-      <div className="px-2 py-6">
-        <p className="text-lg font-bold">Couldn’t load the organisation.</p>
-        <p className="mt-1 text-sm text-[#e0d6ec]/70">
-          Check that the API is running at localhost:8000, then refresh.
-        </p>
-      </div>
-    );
-  }
-
-  if (roots.length > 0) {
-    return (
-      <ul aria-label="Organisation tree">
-        {roots.map((node) => (
-          <PersonRow key={node.id} node={node} depth={0} forceOpen={searching} />
-        ))}
-      </ul>
-    );
-  }
-
-  return (
-    <div className="flex flex-col items-start gap-4 px-2 py-6">
-      <p className="text-lg font-bold">
-        {searching ? `No one matches “${query.trim()}”.` : "No employees to show yet."}
-      </p>
-      {searching ? (
-        <button type="button" onClick={onClearSearch} className={buttonClass}>
-          Clear search
-        </button>
-      ) : (
-        <Link to="/employees" className={buttonClass}>
-          <Table weight="bold" aria-hidden />
-          Add employees
-        </Link>
-      )}
-    </div>
-  );
-}
-</file>
-
-<file path="web/src/components/organisms/overview-profile-panel.tsx">
-import { Link } from "react-router-dom";
-import {
-  ArrowRight,
-  CalendarBlank,
-  CaretRight,
-  EnvelopeSimple,
-  IdentificationCard,
-  TreeStructure,
-  UserCircle,
-  Users,
-} from "@phosphor-icons/react";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/atoms/avatar";
-import { buttonVariants } from "@/components/atoms/button";
-import { cn } from "@/lib/utils";
-import type { HierarchyNode } from "@/lib/types";
-
-export type ProfileUser = {
-  name: string;
-  email?: string;
-  role?: string;
-  avatarUrl?: string;
-  created_at?: string;
-};
-
-function initials(name: string) {
-  return name
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((part) => part[0]?.toUpperCase())
-    .join("");
-}
-
-function flatten(nodes: HierarchyNode[]): HierarchyNode[] {
-  const out: HierarchyNode[] = [];
-  const walk = (list: HierarchyNode[]) => {
-    for (const n of list) {
-      out.push(n);
-      walk(n.children);
-    }
-  };
-  walk(nodes);
-  return out;
-}
-
-function findWithPath(
-  nodes: HierarchyNode[],
-  name: string,
-  email?: string,
-): { node: HierarchyNode; ancestors: HierarchyNode[] } | null {
-  const target = name.trim().toLowerCase();
-  const mail = email?.trim().toLowerCase();
-  const walk = (list: HierarchyNode[], path: HierarchyNode[]): ReturnType<typeof findWithPath> => {
-    for (const n of list) {
-      const full = `${n.name} ${n.surname}`.trim().toLowerCase();
-      const match =
-        (mail && n.avatar_url?.toLowerCase().includes(mail)) || false || full === target;
-      if (match) return { node: n, ancestors: path };
-      const deeper = walk(n.children, [...path, n]);
-      if (deeper) return deeper;
-    }
-    return null;
-  };
-  return walk(nodes, []);
-}
-
-function Stat({
-  label,
-  value,
-  loading,
-}: {
-  label: string;
-  value: string | number;
-  loading?: boolean;
-}) {
-  return (
-    <div className="rounded-2xl border border-border/60 bg-[color-mix(in_srgb,var(--color-card),transparent_30%)] px-4 py-3">
-      <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
-        {label}
-      </p>
-      <p className="mt-1 text-2xl font-extrabold tabular-nums text-foreground">
-        {loading ? "–" : value}
-      </p>
-    </div>
-  );
-}
-
-function PersonChip({
-  node,
-  onClick,
-  label,
-}: {
-  node: HierarchyNode;
-  onClick?: () => void;
-  label?: string;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={cn(
-        "flex w-full items-center gap-3 rounded-2xl border border-border/60 bg-[color-mix(in_srgb,var(--color-card),transparent_40%)] px-3 py-2 text-left transition-colors",
-        onClick && "hover:border-border hover:bg-[color-mix(in_srgb,var(--color-card),transparent_20%)]",
-      )}
-    >
-      <Avatar className="size-9 rounded-xl">
-        <AvatarImage src={node.avatar_url} alt="" />
-        <AvatarFallback className="rounded-xl bg-primary/15 font-bold text-foreground ring-1 ring-border">
-          {`${node.name[0] ?? ""}${node.surname[0] ?? ""}`.toUpperCase()}
-        </AvatarFallback>
-      </Avatar>
-      <div className="min-w-0 flex-1">
-        {label && (
-          <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
-            {label}
-          </p>
-        )}
-        <p className="truncate text-sm font-bold leading-tight text-foreground">
-          {node.name} {node.surname}
-        </p>
-        <p className="truncate text-xs text-muted-foreground">{node.role}</p>
-      </div>
-      {onClick && <CaretRight size={14} weight="bold" className="shrink-0 text-muted-foreground" />}
-    </button>
-  );
-}
-
-export function ProfilePanel({
-  user,
-  total,
-  topLevel,
-  links,
-  isLoading,
-  hierarchy,
-}: {
-  user?: ProfileUser | null;
-  total: number;
-  topLevel: number;
-  links: number;
-  isLoading?: boolean;
-  hierarchy?: HierarchyNode[];
-}) {
-  const firstName = user?.name.split(/\s+/)[0];
-  const tree = hierarchy ?? [];
-  const me = user ? findWithPath(tree, user.name, user.email) : null;
-
-  const manager = me?.ancestors.length ? me.ancestors[me.ancestors.length - 1] : null;
-  const reports = me?.node.children ?? [];
-  const reportsTotal = me?.node.direct_report_count ?? reports.length;
-  const chain = me?.ancestors ?? [];
-
-  return (
-    <section className="glass-panel rounded-[2rem] text-foreground">
-      <div className="flex flex-col gap-8 p-6 md:p-10">
-        {/* ---- Top block: the one and only identity block ---- */}
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex min-w-0 items-center gap-4">
-            <Avatar className="size-16 shrink-0 rounded-2xl">
-              {user?.avatarUrl && <AvatarImage src={user.avatarUrl} alt="" />}
-              <AvatarFallback className="rounded-2xl bg-primary text-lg font-bold text-primary-foreground">
-                {user ? initials(user.name) : <UserCircle size={28} weight="bold" aria-hidden />}
-              </AvatarFallback>
-            </Avatar>
-            <div className="min-w-0">
-              <p className="text-xs font-bold uppercase tracking-[0.18em] text-muted-foreground">
-                {firstName ? `Welcome back,` : "Your workspace"}
-              </p>
-              <h1 className="truncate text-3xl font-extrabold leading-tight text-foreground md:text-4xl">
-                {user ? user.name : "Not signed in"}
-              </h1>
-              <p className="truncate text-sm text-muted-foreground">
-                {user?.role ?? "Role unavailable"}
-              </p>
-            </div>
-          </div>
-
-          <div className="flex flex-wrap gap-2">
-            <Link
-              to="/organisation"
-              className={cn(
-                buttonVariants({ size: "lg" }),
-                "rounded-full bg-primary font-bold text-primary-foreground hover:bg-[color-mix(in_srgb,var(--color-primary),white_12%)]",
-              )}
-            >
-              <TreeStructure weight="bold" aria-hidden />
-              Organisation
-            </Link>
-            <Link
-              to="/employees"
-              className={cn(
-                buttonVariants({ size: "lg" }),
-                "rounded-full bg-secondary font-bold text-foreground ring-1 ring-border hover:bg-[color-mix(in_srgb,var(--color-secondary),var(--color-foreground)_8%)]",
-              )}
-            >
-              Employees
-              <ArrowRight weight="bold" aria-hidden />
-            </Link>
-          </div>
-        </div>
-
-        {/* ---- Small facts row, no second avatar ---- */}
-        <ul className="flex flex-wrap gap-x-6 gap-y-2 text-sm text-muted-foreground">
-          <li className="flex items-center gap-2">
-            <EnvelopeSimple size={16} weight="bold" aria-hidden />
-            <span className="truncate">{user?.email ?? "No email"}</span>
-          </li>
-          <li className="flex items-center gap-2">
-            <IdentificationCard size={16} weight="bold" aria-hidden />
-            <span>Lineari account</span>
-          </li>
-          {user?.created_at && (
-            <li className="flex items-center gap-2">
-              <CalendarBlank size={16} weight="bold" aria-hidden />
-              <span>
-                Member since{" "}
-                {new Date(user.created_at).toLocaleDateString(undefined, {
-                  month: "short",
-                  year: "numeric",
-                })}
-              </span>
-            </li>
-          )}
-        </ul>
-
-        {/* ---- Team summary ---- */}
-        <div className="grid gap-6 lg:grid-cols-[1fr_1.4fr]">
-          <div className="flex flex-col gap-3">
-            <h2 className="text-sm font-bold uppercase tracking-[0.18em] text-muted-foreground">
-              Reporting line
-            </h2>
-
-            {isLoading ? (
-              <div className="h-24 animate-pulse rounded-2xl bg-muted" />
-            ) : !me ? (
-              <p className="rounded-2xl border border-border/60 px-4 py-3 text-sm text-muted-foreground">
-                {tree.length === 0
-                  ? "No employees in the directory yet."
-                  : "Couldn't match your account to an employee record."}
-              </p>
-            ) : (
-              <div className="flex flex-col gap-2">
-                {manager ? (
-                  <PersonChip node={manager} label="Reports to" />
-                ) : (
-                  <div className="rounded-2xl border border-border/60 px-4 py-3 text-sm text-muted-foreground">
-                    {chain.length === 0 ? "No manager — top of the tree." : "Manager not shown."}
-                  </div>
-                )}
-
-                <div className="rounded-2xl border border-border/60 bg-[color-mix(in_srgb,var(--color-card),transparent_40%)] px-4 py-3">
-                  <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
-                    You
-                  </p>
-                  <p className="truncate text-sm font-bold text-foreground">
-                    {me.node.name} {me.node.surname}
-                  </p>
-                  <p className="truncate text-xs text-muted-foreground">{me.node.role}</p>
-                </div>
-
-                {chain.length > 1 && (
-                  <div className="rounded-2xl border border-dashed border-border/70 px-4 py-3">
-                    <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
-                      Chain above
-                    </p>
-                    <p className="truncate text-xs text-muted-foreground">
-                      {chain
-                        .slice(0, -1)
-                        .map((a) => `${a.name} ${a.surname}`)
-                        .join(" → ")}
-                    </p>
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-
-          <div className="flex flex-col gap-3">
-            <div className="flex items-baseline justify-between gap-3">
-              <h2 className="text-sm font-bold uppercase tracking-[0.18em] text-muted-foreground">
-                Your team
-              </h2>
-              <span className="text-xs font-semibold text-muted-foreground">
-                {reportsTotal} {reportsTotal === 1 ? "report" : "reports"}
-              </span>
-            </div>
-
-            {isLoading ? (
-              <div className="h-24 animate-pulse rounded-2xl bg-muted" />
-            ) : !me || reports.length === 0 ? (
-              <p className="rounded-2xl border border-border/60 px-4 py-3 text-sm text-muted-foreground">
-                {me
-                  ? "No direct reports yet."
-                  : "Sign-in data not available for this workspace."}
-              </p>
-            ) : (
-              <ul className="flex flex-col gap-2">
-                {reports.slice(0, 6).map((r) => (
-                  <li key={r.id}>
-                    <PersonChip node={r} />
-                  </li>
-                ))}
-                {reports.length > 6 && (
-                  <li>
-                    <Link
-                      to="/organisation"
-                      className="flex items-center justify-between rounded-2xl border border-border/60 px-4 py-2 text-sm font-semibold text-muted-foreground hover:text-foreground"
-                    >
-                      {reports.length - 6} more
-                      <CaretRight size={14} weight="bold" />
-                    </Link>
-                  </li>
-                )}
-              </ul>
-            )}
-          </div>
-        </div>
-
-        {/* ---- Workspace stats ---- */}
-        <div className="grid grid-cols-3 gap-3">
-          <Stat label="People" value={total} loading={isLoading} />
-          <Stat label="Top-level" value={topLevel} loading={isLoading} />
-          <Stat label="Links" value={links} loading={isLoading} />
-        </div>
-
-        <div className="flex items-center justify-between gap-3 text-sm">
-          <span className="flex items-center gap-2 text-muted-foreground">
-            <Users size={16} weight="bold" aria-hidden />
-            You are part of this workspace
-          </span>
-          <Link to="/account" className="font-bold text-primary hover:underline">
-            Account settings
-          </Link>
-        </div>
-      </div>
-    </section>
-  );
 }
 </file>
 
@@ -6467,65 +6535,79 @@ export function useApiHealth() {
 }
 </file>
 
-<file path="web/src/hooks/useAuth.ts">
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+<file path="web/src/hooks/useDeleteEmployee.ts">
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { ApiError, fetchJson } from "@/lib/api";
 
-export type AuthUser = { email: string; first_name: string; last_name: string };
-export type LoginInput = { email: string; password: string };
-export type SignupInput = LoginInput & { first_name: string; last_name: string };
-
-const ME = ["me"] as const;
-const post = <T,>(path: string, body?: unknown) =>
-  fetchJson<T>(path, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: body === undefined ? undefined : JSON.stringify(body),
-  });
-
-/** The signed-in user, or null when there is no valid session. */
-export function useMe() {
-  return useQuery<AuthUser | null>({
-    queryKey: ME,
-    queryFn: async () => {
-      try {
-        return await fetchJson<AuthUser>("/auth/me");
-      } catch (error) {
-        if (error instanceof ApiError && error.status === 401) return null;
-        throw error;
-      }
+export function useDeleteEmployee() {
+  const queryClient = useQueryClient();
+  return useMutation<
+    void,
+    ApiError,
+    { id: string; reassign_reports_to?: string | null; reassign_to_none?: boolean }
+  >({
+    mutationFn: ({ id, reassign_reports_to, reassign_to_none }) => {
+      const params = new URLSearchParams();
+      if (reassign_reports_to) params.set("reassign_reports_to", reassign_reports_to);
+      if (reassign_to_none) params.set("reassign_to_none", "true");
+      const qs = params.toString();
+      return fetchJson<void>(`/employees/${id}${qs ? `?${qs}` : ""}`, {
+        method: "DELETE",
+      });
     },
-    retry: false,
-    staleTime: 5 * 60_000,
+    onSuccess: () => queryClient.invalidateQueries(),
   });
 }
+</file>
 
-export function useLogin() {
-  const queryClient = useQueryClient();
-  return useMutation<AuthUser, ApiError, LoginInput>({
-    mutationFn: (body) => post<AuthUser>("/auth/login", body),
-    onSuccess: (user) => queryClient.setQueryData(ME, user),
-  });
-}
+<file path="web/src/hooks/useEmployeeDirectory.ts">
+import { useMemo, useState } from "react";
+import type { components } from "@/api/schema";
 
-export function useSignup() {
-  const queryClient = useQueryClient();
-  return useMutation<AuthUser, ApiError, SignupInput>({
-    mutationFn: (body) => post<AuthUser>("/auth/signup", body),
-    onSuccess: (user) => queryClient.setQueryData(ME, user),
-  });
-}
+export type Employee = components["schemas"]["Employee"];
+export type SortKey = "name" | "surname" | "role" | "email" | "manager_name";
+export type SortDir = "asc" | "desc";
 
-export function useLogout() {
-  const queryClient = useQueryClient();
-  return useMutation<unknown, ApiError>({
-    mutationFn: () => post("/auth/logout"),
-    onSettled: () => {
-      // Drop everything the last person could see, then mark the session as gone.
-      queryClient.removeQueries({ predicate: (q) => q.queryKey[0] !== ME[0] });
-      queryClient.setQueryData(ME, null);
-    },
-  });
+export function useEmployeeDirectory(employees: Employee[]) {
+  const [query, setQuery] = useState("");
+  const [sortKey, setSortKey] = useState<SortKey>("surname");
+  const [sortDir, setSortDir] = useState<SortDir>("asc");
+
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    const rows = q
+      ? employees.filter((e) =>
+          `${e.name} ${e.surname} ${e.role} ${e.email} ${e.emp_number}`
+            .toLowerCase()
+            .includes(q),
+        )
+      : employees;
+    return [...rows].sort((a, b) => {
+      const av = (a[sortKey] ?? "").toString().toLowerCase();
+      const bv = (b[sortKey] ?? "").toString().toLowerCase();
+      return sortDir === "asc" ? av.localeCompare(bv) : bv.localeCompare(av);
+    });
+  }, [employees, query, sortKey, sortDir]);
+
+  const managers = useMemo(
+    () =>
+      employees.map((e) => ({
+        id: e.id,
+        label: `${e.name} ${e.surname} — ${e.role}`,
+      })),
+    [employees],
+  );
+
+  const toggleSort = (key: SortKey) => {
+    if (key === sortKey) {
+      setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    } else {
+      setSortKey(key);
+      setSortDir("asc");
+    }
+  };
+
+  return { query, setQuery, sortKey, sortDir, toggleSort, filtered, managers };
 }
 </file>
 
@@ -6606,6 +6688,39 @@ export function useTheme() {
 }
 </file>
 
+<file path="web/src/hooks/useUpdateEmployee.ts">
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { ApiError, fetchJson } from "@/lib/api";
+
+export type EmployeeUpdateBody = {
+  name?: string;
+  surname?: string;
+  email?: string;
+  birth_date?: string;
+  emp_number?: string;
+  salary?: number;
+  role?: string;
+  manager_id?: string | null;
+};
+
+export function useUpdateEmployee() {
+  const queryClient = useQueryClient();
+  return useMutation<
+    { id: string },
+    ApiError,
+    { id: string; body: EmployeeUpdateBody }
+  >({
+    mutationFn: ({ id, body }) =>
+      fetchJson<{ id: string }>(`/employees/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      }),
+    onSuccess: () => queryClient.invalidateQueries(),
+  });
+}
+</file>
+
 <file path="web/src/lib/constants.ts">
 export const FRIENDLY_ERRORS: Record<string, string> = {
   duplicate_email: "That email address is already used by another employee.",
@@ -6653,6 +6768,49 @@ export type HierarchyNode = {
   direct_report_count: number;
   children: HierarchyNode[];
 };
+</file>
+
+<file path="web/src/pages/account-page.tsx">
+import { Navigate } from "react-router-dom";
+import { LineariMark } from "@/components/atoms/lineari-mark";
+import { AccountProfileCard } from "@/components/organisms/account-profile-card";
+import { AccountPasswordCard } from "@/components/organisms/account-pasword-card";
+import { useMe } from "@/hooks/useAuth";
+
+export default function AccountPage() {
+  const { data: user, isLoading } = useMe();
+
+  if (isLoading) {
+    return (
+      <div className="grid min-h-[40vh] place-items-center" role="status" aria-label="Loading">
+        <LineariMark className="size-14 animate-pulse" />
+      </div>
+    );
+  }
+  if (!user) return <Navigate to="/login" replace />;
+
+  return (
+    <div className="space-y-4">
+      <section className="glass-panel rounded-[2rem] text-foreground">
+        <div className="p-6 md:p-8">
+          <p className="text-xs font-bold uppercase tracking-[0.18em] text-muted-foreground">
+            Account
+          </p>
+          <h1 className="mt-2 max-w-xl text-4xl font-extrabold leading-[1.05] tracking-tight md:text-5xl">
+            Manage your account.
+          </h1>
+          <p className="mt-3 max-w-lg text-base text-muted-foreground">
+            Update the name and email shown across the app, or change your password.
+            Employee records are edited separately from the Employees page.
+          </p>
+        </div>
+      </section>
+
+      <AccountProfileCard user={user} />
+      <AccountPasswordCard />
+    </div>
+  );
+}
 </file>
 
 <file path="web/src/pages/login-page.tsx">
@@ -6718,70 +6876,6 @@ export default function LoginPage() {
     </AuthLayout>
 
     
-  );
-}
-</file>
-
-<file path="web/src/pages/organisation-page.tsx">
-import { useMemo, useState } from "react";
-import { OrganisationSearch } from "@/components/molecules/organisation-search";
-import { OrganisationTree } from "@/components/organisms/organisation-tree";
-import { countAll, depthOf, filterTree } from "@/lib/tree";
-import type { HierarchyNode } from "@/lib/types";
-
-type OrganisationPageProps = {
-  roots?: HierarchyNode[];
-  isLoading?: boolean;
-  isError?: boolean;
-};
-
-export default function OrganisationPage({ roots, isLoading, isError }: OrganisationPageProps) {
-  const [query, setQuery] = useState("");
-  const tree = roots ?? [];
-  const visible = useMemo(() => filterTree(tree, query), [tree, query]);
-
-  const total = countAll(tree);
-  const levels = depthOf(tree);
-
-  return (
-    <div className="space-y-4">
-      <section className="glass-panel rounded-[2rem] text-[#e0d6ec]">
-        <div className="flex flex-col gap-8 p-6 md:p-10 lg:flex-row lg:items-end lg:justify-between">
-          <div>
-            <h1 className="max-w-xl text-4xl font-extrabold leading-[1.05] tracking-tight md:text-5xl">
-              Who reports to whom.
-            </h1>
-            <p className="mt-5 max-w-lg text-base text-[#e0d6ec]/85">
-              Open any manager to see their team. Search by name or role to jump to a person.
-            </p>
-          </div>
-
-          <dl className="flex gap-8">
-            <div>
-              <dt className="text-sm text-[#e0d6ec]/70">People</dt>
-              <dd className="text-4xl font-extrabold tabular-nums">{isLoading ? "–" : total}</dd>
-            </div>
-            <div>
-              <dt className="text-sm text-[#e0d6ec]/70">Levels</dt>
-              <dd className="text-4xl font-extrabold tabular-nums">{isLoading ? "–" : levels}</dd>
-            </div>
-          </dl>
-        </div>
-      </section>
-
-      <section className="glass-panel rounded-[2rem] text-[#e0d6ec]">
-        <div className="space-y-5 p-4 md:p-6">
-          <OrganisationSearch value={query} onChange={setQuery} />
-          <OrganisationTree
-            roots={visible}
-            isLoading={isLoading}
-            isError={isError}
-            query={query}
-            onClearSearch={() => setQuery("")}
-          />
-        </div>
-      </section>
-    </div>
   );
 }
 </file>
@@ -7385,6 +7479,246 @@ check: lint-contract types test
 Lineari is a full-stack employee hierarchy app built with React, FastAPI, and PostgreSQL. Create and manage employees, set reporting lines, explore the org chart visually, and filter the employee table, with Gravatar avatars throughout.
 </file>
 
+<file path="api/app/routers/auth.py">
+from datetime import datetime, timedelta, timezone
+from typing import Annotated
+
+from fastapi import APIRouter, Cookie, Depends, Response
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
+from sqlalchemy import select, update
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy.orm import Session
+
+from ..auth.deps import get_current_user
+from ..auth.models import RefreshToken, User
+from ..auth.security import (
+    DUMMY_HASH,
+    clear_auth_cookies,
+    create_access_token,
+    hash_password,
+    hash_refresh_token,
+    new_refresh_token,
+    set_auth_cookies,
+    validate_password_strength,
+    verify_password,
+)
+from ..auth.settings import get_auth_settings
+from ..db import get_db
+from ..errors import AppError
+
+settings = get_auth_settings()
+router = APIRouter(prefix="/auth", tags=["Auth"])
+
+Name = Annotated[str, Field(min_length=1, max_length=100)]
+
+
+class SignupRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+
+    email: EmailStr
+    password: str
+    first_name: Name
+    last_name: Name
+
+    @field_validator("password")
+    @classmethod
+    def strong_password(cls, value: str) -> str:
+        return validate_password_strength(value)
+
+
+class LoginRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+
+    email: EmailStr
+    # No strength rules here. They only matter when a password is chosen.
+    password: str = Field(min_length=1, max_length=128)
+
+
+class UserOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    email: EmailStr
+    first_name: str
+    last_name: str
+    created_at: datetime
+
+
+class MessageOut(BaseModel):
+    message: str
+
+
+def _start_session(db: Session, user: User, response: Response) -> None:
+    refresh, refresh_hash = new_refresh_token()
+    expires = datetime.now(timezone.utc) + timedelta(days=settings.refresh_token_expire_days)
+    db.add(RefreshToken(user_id=user.id, token_hash=refresh_hash, expires_at=expires))
+    db.commit()
+    set_auth_cookies(
+        response,
+        access_token=create_access_token(user.id),
+        refresh_token=refresh,
+        refresh_expires_at=expires,
+    )
+
+
+@router.post("/signup", response_model=UserOut, status_code=201)
+def signup(payload: SignupRequest, response: Response, db: Annotated[Session, Depends(get_db)]):
+    email = payload.email.lower()
+    if db.scalar(select(User.id).where(User.email == email)):
+        raise AppError(409, "duplicate_email", "An account with this email already exists")
+
+    user = User(
+        email=email,
+        hashed_password=hash_password(payload.password),
+        first_name=payload.first_name,
+        last_name=payload.last_name,
+    )
+    db.add(user)
+    try:
+        db.commit()
+    except IntegrityError:  # two signups raced for the same email
+        db.rollback()
+        raise AppError(409, "duplicate_email", "An account with this email already exists")
+    db.refresh(user)
+
+    _start_session(db, user, response)
+    return user
+
+
+@router.post("/login", response_model=UserOut)
+def login(payload: LoginRequest, response: Response, db: Annotated[Session, Depends(get_db)]):
+    user = db.scalar(select(User).where(User.email == payload.email.lower()))
+    # Always run one bcrypt check, so response time does not reveal which emails exist.
+    password_ok = verify_password(payload.password, user.hashed_password if user else DUMMY_HASH)
+    if user is None or not password_ok or not user.is_active:
+        raise AppError(401, "invalid_credentials", "Invalid email or password")
+
+    _start_session(db, user, response)
+    return user
+
+
+@router.post("/refresh", response_model=MessageOut)
+def refresh(
+    response: Response,
+    db: Annotated[Session, Depends(get_db)],
+    refresh_token: Annotated[str | None, Cookie(alias=settings.refresh_cookie_name)] = None,
+):
+    if not refresh_token:
+        raise AppError(401, "unauthorized", "No refresh token provided")
+
+    stored = db.scalar(
+        select(RefreshToken).where(RefreshToken.token_hash == hash_refresh_token(refresh_token))
+    )
+    if stored is None:
+        raise AppError(401, "unauthorized", "Refresh token is invalid")
+
+    if stored.revoked:
+        # A used token came back, so it may have been stolen. End every session for this user.
+        db.execute(
+            update(RefreshToken).where(RefreshToken.user_id == stored.user_id).values(revoked=True)
+        )
+        db.commit()
+        raise AppError(401, "unauthorized", "Refresh token has already been used")
+
+    if stored.expires_at < datetime.now(timezone.utc):
+        raise AppError(401, "unauthorized", "Refresh token has expired")
+
+    user = db.get(User, stored.user_id)
+    if user is None or not user.is_active:
+        raise AppError(401, "unauthorized", "User no longer exists")
+
+    stored.revoked = True  # rotation: every refresh token works exactly once
+    _start_session(db, user, response)
+    return MessageOut(message="Session refreshed")
+
+
+@router.post("/logout", response_model=MessageOut)
+def logout(
+    response: Response,
+    db: Annotated[Session, Depends(get_db)],
+    refresh_token: Annotated[str | None, Cookie(alias=settings.refresh_cookie_name)] = None,
+):
+    if refresh_token:
+        db.execute(
+            update(RefreshToken)
+            .where(RefreshToken.token_hash == hash_refresh_token(refresh_token))
+            .values(revoked=True)
+        )
+        db.commit()
+    clear_auth_cookies(response)
+    return MessageOut(message="Signed out")
+
+
+@router.get("/me", response_model=UserOut)
+def me(user: Annotated[User, Depends(get_current_user)]):
+    return user
+
+class ProfileUpdateRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+
+    email: EmailStr | None = None
+    first_name: Name | None = None
+    last_name: Name | None = None
+
+
+class PasswordChangeRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+
+    current_password: str = Field(min_length=1, max_length=128)
+    new_password: str
+
+    @field_validator("new_password")
+    @classmethod
+    def strong_password(cls, value: str) -> str:
+        return validate_password_strength(value)
+
+
+@router.patch("/me", response_model=UserOut)
+def update_me(
+    payload: ProfileUpdateRequest,
+    db: Annotated[Session, Depends(get_db)],
+    user: Annotated[User, Depends(get_current_user)],
+):
+    changes = payload.model_dump(exclude_unset=True)
+
+    if "email" in changes:
+        email = changes["email"].lower()
+        if email != user.email:
+            taken = db.scalar(
+                select(User.id).where(User.email == email, User.id != user.id)
+            )
+            if taken:
+                raise AppError(409, "duplicate_email", "That email is already in use")
+            user.email = email
+
+    if "first_name" in changes:
+        user.first_name = changes["first_name"]
+    if "last_name" in changes:
+        user.last_name = changes["last_name"]
+
+    db.commit()
+    db.refresh(user)
+    return user
+
+
+@router.post("/me/password", response_model=MessageOut)
+def change_password(
+    payload: PasswordChangeRequest,
+    db: Annotated[Session, Depends(get_db)],
+    user: Annotated[User, Depends(get_current_user)],
+):
+    if not verify_password(payload.current_password, user.hashed_password):
+        raise AppError(401, "invalid_credentials", "Current password is incorrect")
+
+    user.hashed_password = hash_password(payload.new_password)
+
+    # Revoke every refresh token so any other signed-in session ends.
+    db.execute(
+        update(RefreshToken).where(RefreshToken.user_id == user.id).values(revoked=True)
+    )
+    db.commit()
+    return MessageOut(message="Password updated")
+</file>
+
 <file path="api/app/db.py">
 from sqlalchemy import create_engine
 from sqlalchemy.orm import DeclarativeBase, sessionmaker
@@ -7709,82 +8043,94 @@ export function NavTab({
 }
 </file>
 
-<file path="web/src/components/molecules/person-row.tsx">
-import { useState } from "react";
-import { CaretRight } from "@phosphor-icons/react";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/atoms/avatar";
-import { fullName, initials } from "@/lib/format";
+<file path="web/src/components/organisms/organisation-tree.tsx">
+import { Link } from "react-router-dom";
+import { Table } from "@phosphor-icons/react";
+import { buttonVariants } from "@/components/atoms/button";
+import { Skeleton } from "@/components/atoms/skeleton";
+import { PersonRow } from "@/components/molecules/person-row";
 import type { HierarchyNode } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
-export function PersonRow({
-  node,
-  depth,
-  forceOpen,
-}: {
-  node: HierarchyNode;
-  depth: number;
-  forceOpen: boolean;
-}) {
-  const [open, setOpen] = useState(depth < 1);
-  const hasChildren = node.children.length > 0;
-  const expanded = hasChildren && (open || forceOpen);
-  const reports = node.direct_report_count;
+type OrganisationTreeProps = {
+  roots: HierarchyNode[];
+  isLoading?: boolean;
+  isError?: boolean;
+  /** Search term used to force-open matches and to tune the empty message. */
+  query: string;
+  /** When set, the row with this id is force-opened and its ancestors' rows too. */
+  focusId?: string;
+  onClearSearch: () => void;
+};
+
+export function OrganisationTree({
+  roots,
+  isLoading,
+  isError,
+  query,
+  focusId,
+  onClearSearch,
+}: OrganisationTreeProps) {
+  const searching = query.trim().length > 0;
+
+  const buttonClass = cn(
+    buttonVariants({ size: "lg" }),
+    "rounded-full bg-primary font-bold text-primary-foreground hover:bg-[color-mix(in_srgb,var(--color-primary),white_12%)]",
+  );
+
+  if (isLoading) {
+    return (
+      <div className="space-y-3" aria-busy="true">
+        {[0, 1, 2, 3].map((i) => (
+          <Skeleton key={i} className="h-14 w-full rounded-2xl bg-muted" />
+        ))}
+      </div>
+    );
+  }
+
+  if (isError) {
+    return (
+      <div className="px-2 py-6">
+        <p className="text-lg font-bold">Couldn't load the organisation.</p>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Check that the API is running at localhost:8000, then refresh.
+        </p>
+      </div>
+    );
+  }
+
+  if (roots.length > 0) {
+    return (
+      <ul aria-label="Organisation tree">
+        {roots.map((node) => (
+          <PersonRow
+            key={node.id}
+            node={node}
+            depth={0}
+            forceOpen={searching || Boolean(focusId)}
+            highlightId={focusId}
+          />
+        ))}
+      </ul>
+    );
+  }
 
   return (
-    <li>
-      <div className="flex items-center gap-3 rounded-2xl px-2 py-2 transition-colors hover:bg-[#e0d6ec]/10">
-        <button
-          type="button"
-          onClick={() => setOpen((v) => !v)}
-          disabled={!hasChildren}
-          aria-expanded={hasChildren ? expanded : undefined}
-          aria-label={
-            hasChildren
-              ? `${expanded ? "Collapse" : "Expand"} ${fullName(node)}'s reports`
-              : `${fullName(node)} has no reports`
-          }
-          className={cn(
-            "grid size-7 shrink-0 place-items-center rounded-full text-panel transition-colors",
-            "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-panel/60",
-            hasChildren ? "hover:bg-panel/15" : "opacity-0",
-          )}
-        >
-          <CaretRight
-            size={14}
-            weight="bold"
-            aria-hidden
-            className={cn("transition-transform duration-200", expanded && "rotate-90")}
-          />
+    <div className="flex flex-col items-start gap-4 px-2 py-6">
+      <p className="text-lg font-bold">
+        {searching ? `No one matches "${query.trim()}".` : "No employees to show yet."}
+      </p>
+      {searching ? (
+        <button type="button" onClick={onClearSearch} className={buttonClass}>
+          Clear search
         </button>
-
-        <Avatar className="size-10 rounded-xl">
-          <AvatarImage src={node.avatar_url} alt="" />
-          <AvatarFallback className="rounded-xl bg-[#e0d6ec]/20 font-bold text-[#e0d6ec] ring-1 ring-[#e0d6ec]/25">
-            {initials(node)}
-          </AvatarFallback>
-        </Avatar>
-
-        <div className="min-w-0 flex-1">
-          <p className="truncate font-bold leading-tight">{fullName(node)}</p>
-          <p className="truncate text-sm text-[#e0d6ec]/70">{node.role}</p>
-        </div>
-
-        {reports > 0 && (
-          <span className="shrink-0 rounded-full bg-[#e0d6ec]/12 px-3 py-1 text-xs font-semibold tabular-nums text-[#e0d6ec] ring-1 ring-[#e0d6ec]/20">
-            {reports} {reports === 1 ? "report" : "reports"}
-          </span>
-        )}
-      </div>
-
-      {expanded && (
-        <ul className="ml-6 border-l border-[#e0d6ec]/20 pl-3">
-          {node.children.map((child) => (
-            <PersonRow key={child.id} node={child} depth={depth + 1} forceOpen={forceOpen} />
-          ))}
-        </ul>
+      ) : (
+        <Link to="/employees" className={buttonClass}>
+          <Table weight="bold" aria-hidden />
+          Add employees
+        </Link>
       )}
-    </li>
+    </div>
   );
 }
 </file>
@@ -8485,6 +8831,103 @@ export function AppBackground() {
 }
 </file>
 
+<file path="web/src/hooks/useAuth.ts">
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { ApiError, fetchJson } from "@/lib/api";
+
+export type AuthUser = { email: string; first_name: string; last_name: string; created_at: string; };
+export type LoginInput = { email: string; password: string };
+export type SignupInput = LoginInput & { first_name: string; last_name: string };
+
+const ME = ["me"] as const;
+const post = <T,>(path: string, body?: unknown) =>
+  fetchJson<T>(path, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
+
+/** The signed-in user, or null when there is no valid session. */
+export function useMe() {
+  return useQuery<AuthUser | null>({
+    queryKey: ME,
+    queryFn: async () => {
+      try {
+        return await fetchJson<AuthUser>("/auth/me");
+      } catch (error) {
+        if (error instanceof ApiError && error.status === 401) return null;
+        throw error;
+      }
+    },
+    retry: false,
+    staleTime: 5 * 60_000,
+  });
+}
+
+export function useLogin() {
+  const queryClient = useQueryClient();
+  return useMutation<AuthUser, ApiError, LoginInput>({
+    mutationFn: (body) => post<AuthUser>("/auth/login", body),
+    onSuccess: (user) => queryClient.setQueryData(ME, user),
+  });
+}
+
+export function useSignup() {
+  const queryClient = useQueryClient();
+  return useMutation<AuthUser, ApiError, SignupInput>({
+    mutationFn: (body) => post<AuthUser>("/auth/signup", body),
+    onSuccess: (user) => queryClient.setQueryData(ME, user),
+  });
+}
+
+export function useLogout() {
+  const queryClient = useQueryClient();
+  return useMutation<unknown, ApiError>({
+    mutationFn: () => post("/auth/logout"),
+    onSettled: () => {
+      // Drop everything the last person could see, then mark the session as gone.
+      queryClient.removeQueries({ predicate: (q) => q.queryKey[0] !== ME[0] });
+      queryClient.setQueryData(ME, null);
+    },
+  });
+}
+
+export type ProfileUpdateInput = {
+  first_name?: string;
+  last_name?: string;
+  email?: string;
+};
+
+export function useUpdateProfile() {
+  const queryClient = useQueryClient();
+  return useMutation<AuthUser, ApiError, ProfileUpdateInput>({
+    mutationFn: (body) =>
+      fetchJson<AuthUser>("/auth/me", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      }),
+    onSuccess: (user) => queryClient.setQueryData(ME, user),
+  });
+}
+
+export type PasswordChangeInput = {
+  current_password: string;
+  new_password: string;
+};
+
+export function useChangePassword() {
+  return useMutation<{ message: string }, ApiError, PasswordChangeInput>({
+    mutationFn: (body) =>
+      fetchJson<{ message: string }>("/auth/me/password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      }),
+  });
+}
+</file>
+
 <file path="web/src/hooks/useCreateEmployee.ts">
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { ApiError, fetchJson } from "@/lib/api";
@@ -8592,6 +9035,313 @@ export function cn(...inputs: ClassValue[]) {
 }
 </file>
 
+<file path="web/src/pages/employee-page.tsx">
+import { useState } from "react";
+import { Link } from "react-router-dom";
+import { MagnifyingGlass, Plus, TreeStructure } from "@phosphor-icons/react";
+import { buttonVariants } from "@/components/atoms/button";
+import { AddEmployeeDialog } from "@/components/organisms/addemployeedialog";
+import { DeleteEmployeeDialog } from "@/components/organisms/delete-employee-dialog";
+import { EmployeeTable } from "@/components/organisms/employee-table";
+import { useEmployees } from "@/hooks/useEmployees";
+import { EditEmployeeDialog } from "@/components/organisms/edit-employee-dialog";
+import {
+  useEmployeeDirectory,
+  type Employee,
+} from "@/hooks/useEmployeeDirectory";
+import { cn } from "@/lib/utils";
+
+export default function EmployeesPage() {
+  const { data, isLoading, isError } = useEmployees();
+  const directory = useEmployeeDirectory(data ?? []);
+  const [addOpen, setAddOpen] = useState(false);
+  const [deleting, setDeleting] = useState<Employee | null>(null);
+  const [editing, setEditing] = useState<Employee | null>(null);
+
+  return (
+    <div className="space-y-4">
+      <section className="glass-panel rounded-[2rem] text-foreground">
+        <div className="flex flex-col gap-6 p-6 md:p-8 lg:flex-row lg:items-end lg:justify-between">
+          <div>
+            <p className="text-xs font-bold uppercase tracking-[0.18em] text-muted-foreground">
+              Directory
+            </p>
+            <h1 className="mt-2 max-w-xl text-4xl font-extrabold leading-[1.05] tracking-tight md:text-5xl">
+              Everyone, in one table.
+            </h1>
+            <p className="mt-3 max-w-lg text-base text-muted-foreground">
+              Search, sort, and keep the directory accurate. Add a person or jump into their
+              reporting line.
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-3">
+            <button
+              type="button"
+              onClick={() => setAddOpen(true)}
+              className={cn(
+                buttonVariants({ size: "lg" }),
+                "rounded-full bg-primary font-bold text-primary-foreground hover:bg-[color-mix(in_srgb,var(--color-primary),white_12%)]",
+              )}
+            >
+              <Plus weight="bold" aria-hidden />
+              Add employee
+            </button>
+            <Link
+              to="/organisation"
+              className={cn(
+                buttonVariants({ size: "lg" }),
+                "rounded-full bg-secondary font-bold text-foreground ring-1 ring-border hover:bg-[color-mix(in_srgb,var(--color-secondary),var(--color-foreground)_8%)]",
+              )}
+            >
+              <TreeStructure weight="bold" aria-hidden />
+              View organisation
+            </Link>
+          </div>
+        </div>
+      </section>
+
+      <section className="glass-panel rounded-[2rem] text-foreground">
+        <div className="space-y-4 p-4 md:p-6">
+          <label className="flex items-center gap-3 rounded-full border border-border/60 bg-[color-mix(in_srgb,var(--color-card),transparent_30%)] px-5 py-3 focus-within:ring-2 focus-within:ring-ring/50">
+            <MagnifyingGlass
+              size={20}
+              weight="bold"
+              aria-hidden
+              className="text-muted-foreground"
+            />
+            <span className="sr-only">Search employees</span>
+            <input
+              type="search"
+              value={directory.query}
+              onChange={(e) => directory.setQuery(e.target.value)}
+              placeholder="Search by name, role, email or employee number"
+              className="w-full bg-transparent text-base text-foreground outline-none placeholder:text-muted-foreground"
+            />
+            {directory.query && (
+              <button
+                type="button"
+                onClick={() => directory.setQuery("")}
+                className="text-xs font-bold text-muted-foreground hover:text-foreground"
+              >
+                Clear
+              </button>
+            )}
+          </label>
+
+          <EmployeeTable
+            rows={directory.filtered}
+            total={data?.length ?? 0}
+            query={directory.query}
+            isLoading={isLoading}
+            isError={isError}
+            sortKey={directory.sortKey}
+            sortDir={directory.sortDir}
+            onSort={directory.toggleSort}
+            onClearSearch={() => directory.setQuery("")}
+            onAddFirst={() => setAddOpen(true)}
+            onDelete={(employee) => setDeleting(employee)}
+            onEdit={(employee) => setEditing(employee)}
+          />
+        </div>
+      </section>
+
+      <AddEmployeeDialog
+        open={addOpen}
+        onClose={() => setAddOpen(false)}
+        managers={directory.managers}
+      />
+
+      <DeleteEmployeeDialog
+        employee={deleting}
+        all={data ?? []}
+        onClose={() => setDeleting(null)}
+      />
+      <EditEmployeeDialog
+        employee={editing}
+        managers={directory.managers}
+        onClose={() => setEditing(null)}
+      />
+    </div>
+  );
+}
+</file>
+
+<file path="web/src/pages/organisation-page.tsx">
+import { useMemo, useState } from "react";
+import { useSearchParams } from "react-router-dom";
+import { List, TreeStructure } from "@phosphor-icons/react";
+import { OrganisationSearch } from "@/components/molecules/organisation-search";
+import { OrganisationTree } from "@/components/organisms/organisation-tree";
+import { OrganisationTreeGraph } from "@/components/organisms/organisation-tree-graph";
+import { countAll, depthOf, filterTree } from "@/lib/tree";
+import type { HierarchyNode } from "@/lib/types";
+import { cn } from "@/lib/utils";
+
+type OrganisationPageProps = {
+  roots?: HierarchyNode[];
+  isLoading?: boolean;
+  isError?: boolean;
+};
+
+type ViewMode = "list" | "graph";
+
+const VIEW_KEY = "lineari_org_view";
+
+function usePersistedView(): [ViewMode, (v: ViewMode) => void] {
+  const [view, setView] = useState<ViewMode>(() => {
+    try {
+      const v = localStorage.getItem(VIEW_KEY);
+      return v === "graph" ? "graph" : "list";
+    } catch {
+      return "list";
+    }
+  });
+  const set = (v: ViewMode) => {
+    setView(v);
+    try {
+      localStorage.setItem(VIEW_KEY, v);
+    } catch {
+      // Ignore storage errors; the in-memory view still updates.
+    }
+  };
+  return [view, set];
+}
+
+function pathTo(nodes: HierarchyNode[], id: string): HierarchyNode[] | null {
+  for (const node of nodes) {
+    if (node.id === id) return [node];
+    const deeper = pathTo(node.children, id);
+    if (deeper) return [node, ...deeper];
+  }
+  return null;
+}
+
+function pruneToPath(nodes: HierarchyNode[], id: string): HierarchyNode[] {
+  const out: HierarchyNode[] = [];
+  for (const node of nodes) {
+    if (node.id === id) {
+      out.push(node);
+      continue;
+    }
+    const children = pruneToPath(node.children, id);
+    if (children.length) out.push({ ...node, children });
+  }
+  return out;
+}
+
+const VIEWS: { key: ViewMode; label: string; icon: React.ReactNode }[] = [
+  { key: "list", label: "List", icon: <List size={16} weight="bold" /> },
+  { key: "graph", label: "Graph", icon: <TreeStructure size={16} weight="bold" /> },
+];
+
+export default function OrganisationPage({ roots, isLoading, isError }: OrganisationPageProps) {
+  const [params] = useSearchParams();
+  const focusId = params.get("focus") ?? "";
+  const [query, setQuery] = useState("");
+  const [view, setView] = usePersistedView();
+  const tree = roots ?? [];
+
+  const searched = useMemo(() => filterTree(tree, query), [tree, query]);
+  const visible = useMemo(() => {
+    if (!focusId) return searched;
+    if (query.trim()) return searched;
+    return pruneToPath(searched, focusId);
+  }, [searched, focusId, query]);
+
+  const total = countAll(tree);
+  const levels = depthOf(tree);
+  const focusPath = focusId ? pathTo(tree, focusId) : null;
+  const focusNode = focusPath?.[focusPath.length - 1] ?? null;
+
+  return (
+    <div className="space-y-4">
+      <section className="glass-panel rounded-[2rem] text-foreground">
+        <div className="flex flex-col gap-8 p-6 md:p-10 lg:flex-row lg:items-end lg:justify-between">
+          <div>
+            <h1 className="max-w-xl text-4xl font-extrabold leading-[1.05] tracking-tight md:text-5xl">
+              {focusNode ? `${focusNode.name} ${focusNode.surname}` : "Who reports to whom."}
+            </h1>
+            <p className="mt-5 max-w-lg text-base text-muted-foreground">
+              {focusNode
+                ? `${focusNode.role} · focused view. Clear the filter to see the whole tree.`
+                : "Open any manager to see their team. Search by name or role to jump to a person."}
+            </p>
+          </div>
+
+          <dl className="flex gap-8">
+            <div>
+              <dt className="text-sm text-muted-foreground">People</dt>
+              <dd className="text-4xl font-extrabold tabular-nums text-foreground">
+                {isLoading ? "–" : total}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-sm text-muted-foreground">Levels</dt>
+              <dd className="text-4xl font-extrabold tabular-nums text-foreground">
+                {isLoading ? "–" : levels}
+              </dd>
+            </div>
+          </dl>
+        </div>
+      </section>
+
+      <section className="glass-panel rounded-[2rem] text-foreground">
+        <div className="space-y-5 p-4 md:p-6">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <OrganisationSearch value={query} onChange={setQuery} />
+
+            <div
+              role="tablist"
+              aria-label="Organisation view"
+              className="inline-flex shrink-0 items-center gap-1 rounded-full border border-border/60 bg-[color-mix(in_srgb,var(--color-card),transparent_40%)] p-1"
+            >
+              {VIEWS.map((v) => {
+                const active = v.key === view;
+                return (
+                  <button
+                    key={v.key}
+                    type="button"
+                    role="tab"
+                    aria-selected={active}
+                    onClick={() => setView(v.key)}
+                    className={cn(
+                      "inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-bold transition-colors",
+                      active
+                        ? "bg-primary text-primary-foreground"
+                        : "text-muted-foreground hover:text-foreground",
+                    )}
+                  >
+                    {v.icon}
+                    {v.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {view === "list" ? (
+            <OrganisationTree
+              roots={visible}
+              isLoading={isLoading}
+              isError={isError}
+              query={query}
+              focusId={focusId}
+              onClearSearch={() => setQuery("")}
+            />
+          ) : (
+            <OrganisationTreeGraph
+              roots={visible}
+              isLoading={isLoading}
+              isError={isError}
+            />
+          )}
+        </div>
+      </section>
+    </div>
+  );
+}
+</file>
+
 <file path="web/package.json">
 {
   "name": "web",
@@ -8618,6 +9368,7 @@ export function cn(...inputs: ClassValue[]) {
     "cn": "^0.5.0",
     "openapi-fetch": "^0.17.0",
     "react": "^19.2.8",
+    "react-d3-tree": "^3.6.7",
     "react-dom": "^19.2.8",
     "react-hook-form": "^7.90.0",
     "react-router-dom": "^7.18.4",
@@ -9380,6 +10131,441 @@ export function BentoCard({ tone = "clear", to, className, style, children }: Be
 }
 </file>
 
+<file path="web/src/components/molecules/person-row.tsx">
+import { useState } from "react";
+import { CaretRight } from "@phosphor-icons/react";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/atoms/avatar";
+import { fullName, initials } from "@/lib/format";
+import type { HierarchyNode } from "@/lib/types";
+import { cn } from "@/lib/utils";
+
+export function PersonRow({
+  node,
+  depth,
+  forceOpen,
+  highlightId,
+}: {
+  node: HierarchyNode;
+  depth: number;
+  forceOpen: boolean;
+  highlightId?: string;
+}) {
+  const [open, setOpen] = useState(depth < 1);
+  const hasChildren = node.children.length > 0;
+  const expanded = hasChildren && (open || forceOpen);
+  const reports = node.direct_report_count;
+  const highlighted = node.id === highlightId;
+
+  return (
+    <li>
+      <div
+        className={cn(
+          "flex items-center gap-3 rounded-2xl px-2 py-2 transition-colors",
+          highlighted
+            ? "bg-primary/10 ring-1 ring-primary/40"
+            : "hover:bg-[color-mix(in_srgb,var(--color-card),transparent_60%)]",
+        )}
+      >
+        <button
+          type="button"
+          onClick={() => setOpen((v) => !v)}
+          disabled={!hasChildren}
+          aria-expanded={hasChildren ? expanded : undefined}
+          aria-label={
+            hasChildren
+              ? `${expanded ? "Collapse" : "Expand"} ${fullName(node)}'s reports`
+              : `${fullName(node)} has no reports`
+          }
+          className={cn(
+            "grid size-7 shrink-0 place-items-center rounded-full text-muted-foreground transition-colors",
+            "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring/60",
+            hasChildren ? "hover:bg-secondary hover:text-foreground" : "opacity-0",
+          )}
+        >
+          <CaretRight
+            size={14}
+            weight="bold"
+            aria-hidden
+            className={cn("transition-transform duration-200", expanded && "rotate-90")}
+          />
+        </button>
+
+        <Avatar className="size-10 rounded-xl">
+          <AvatarImage src={node.avatar_url} alt="" />
+          <AvatarFallback className="rounded-xl bg-primary/15 font-bold text-foreground ring-1 ring-border">
+            {initials(node)}
+          </AvatarFallback>
+        </Avatar>
+
+        <div className="min-w-0 flex-1">
+          <p className="truncate font-bold leading-tight text-foreground">{fullName(node)}</p>
+          <p className="truncate text-sm text-muted-foreground">{node.role}</p>
+        </div>
+
+        {reports > 0 && (
+          <span className="shrink-0 rounded-full bg-secondary px-3 py-1 text-xs font-semibold tabular-nums text-foreground ring-1 ring-border">
+            {reports} {reports === 1 ? "report" : "reports"}
+          </span>
+        )}
+      </div>
+
+      {expanded && (
+        <ul className="ml-6 border-l border-border/60 pl-3">
+          {node.children.map((child) => (
+            <PersonRow
+              key={child.id}
+              node={child}
+              depth={depth + 1}
+              forceOpen={forceOpen}
+              highlightId={highlightId}
+            />
+          ))}
+        </ul>
+      )}
+    </li>
+  );
+}
+</file>
+
+<file path="web/src/components/organisms/overview-profile-panel.tsx">
+import { Link } from "react-router-dom";
+import {
+  ArrowRight,
+  CalendarBlank,
+  CaretRight,
+  EnvelopeSimple,
+  IdentificationCard,
+  TreeStructure,
+  UserCircle,
+  Users,
+} from "@phosphor-icons/react";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/atoms/avatar";
+import { buttonVariants } from "@/components/atoms/button";
+import { cn } from "@/lib/utils";
+import type { HierarchyNode } from "@/lib/types";
+
+export type ProfileUser = {
+  name: string;
+  email?: string;
+  role?: string;
+  avatarUrl?: string;
+  created_at?: string;
+};
+
+function initials(name: string) {
+  return name
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase())
+    .join("");
+}
+
+function findWithPath(
+  nodes: HierarchyNode[],
+  name: string,
+  email?: string,
+): { node: HierarchyNode; ancestors: HierarchyNode[] } | null {
+  const target = name.trim().toLowerCase();
+  const mail = email?.trim().toLowerCase();
+  const walk = (list: HierarchyNode[], path: HierarchyNode[]): ReturnType<typeof findWithPath> => {
+    for (const n of list) {
+      const full = `${n.name} ${n.surname}`.trim().toLowerCase();
+      const match =
+        (mail && n.avatar_url?.toLowerCase().includes(mail)) || false || full === target;
+      if (match) return { node: n, ancestors: path };
+      const deeper = walk(n.children, [...path, n]);
+      if (deeper) return deeper;
+    }
+    return null;
+  };
+  return walk(nodes, []);
+}
+
+function Stat({
+  label,
+  value,
+  loading,
+}: {
+  label: string;
+  value: string | number;
+  loading?: boolean;
+}) {
+  return (
+    <div className="rounded-2xl border border-border/60 bg-[color-mix(in_srgb,var(--color-card),transparent_30%)] px-4 py-3">
+      <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+        {label}
+      </p>
+      <p className="mt-1 text-2xl font-extrabold tabular-nums text-foreground">
+        {loading ? "–" : value}
+      </p>
+    </div>
+  );
+}
+
+function PersonChip({
+  node,
+  onClick,
+  label,
+}: {
+  node: HierarchyNode;
+  onClick?: () => void;
+  label?: string;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        "flex w-full items-center gap-3 rounded-2xl border border-border/60 bg-[color-mix(in_srgb,var(--color-card),transparent_40%)] px-3 py-2 text-left transition-colors",
+        onClick && "hover:border-border hover:bg-[color-mix(in_srgb,var(--color-card),transparent_20%)]",
+      )}
+    >
+      <Avatar className="size-9 rounded-xl">
+        <AvatarImage src={node.avatar_url} alt="" />
+        <AvatarFallback className="rounded-xl bg-primary/15 font-bold text-foreground ring-1 ring-border">
+          {`${node.name[0] ?? ""}${node.surname[0] ?? ""}`.toUpperCase()}
+        </AvatarFallback>
+      </Avatar>
+      <div className="min-w-0 flex-1">
+        {label && (
+          <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+            {label}
+          </p>
+        )}
+        <p className="truncate text-sm font-bold leading-tight text-foreground">
+          {node.name} {node.surname}
+        </p>
+        <p className="truncate text-sm text-muted-foreground">{node.role}</p>
+      </div>
+      {onClick && <CaretRight size={14} weight="bold" className="shrink-0 text-muted-foreground" />}
+    </button>
+  );
+}
+
+export function ProfilePanel({
+  user,
+  total,
+  topLevel,
+  links,
+  isLoading,
+  hierarchy,
+}: {
+  user?: ProfileUser | null;
+  total: number;
+  topLevel: number;
+  links: number;
+  isLoading?: boolean;
+  hierarchy?: HierarchyNode[];
+}) {
+  const firstName = user?.name.split(/\s+/)[0];
+  const tree = hierarchy ?? [];
+  const me = user ? findWithPath(tree, user.name, user.email) : null;
+
+  const manager = me?.ancestors.length ? me.ancestors[me.ancestors.length - 1] : null;
+  const reports = me?.node.children ?? [];
+  const reportsTotal = me?.node.direct_report_count ?? reports.length;
+  const chain = me?.ancestors ?? [];
+
+  // Prefer the role carried on the profile; fall back to the matched
+  // employee's role once the hierarchy lookup resolves.
+  const role = user?.role ?? me?.node.role ?? "Role unavailable";
+
+  return (
+    <section className="glass-panel rounded-[2rem] text-foreground">
+      <div className="flex flex-col gap-8 p-6 md:p-10">
+        {/* ---- Top block: the one and only identity block ---- */}
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex min-w-0 items-center gap-4">
+            <Avatar className="size-16 shrink-0 rounded-2xl">
+              {user?.avatarUrl && <AvatarImage src={user.avatarUrl} alt="" />}
+              <AvatarFallback className="rounded-2xl bg-primary text-lg font-bold text-primary-foreground">
+                {user ? initials(user.name) : <UserCircle size={28} weight="bold" aria-hidden />}
+              </AvatarFallback>
+            </Avatar>
+            <div className="min-w-0">
+              <p className="text-xs font-bold uppercase tracking-[0.18em] text-muted-foreground">
+                {firstName ? "Welcome back," : "Your workspace"}
+              </p>
+              <h1 className="truncate text-3xl font-extrabold leading-tight text-foreground md:text-4xl">
+                {user ? user.name : "Not signed in"}
+              </h1>
+              <p className="truncate text-sm text-muted-foreground">{role}</p>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap gap-2">
+            <Link
+              to="/organisation"
+              className={cn(
+                buttonVariants({ size: "lg" }),
+                "rounded-full bg-primary font-bold text-primary-foreground hover:bg-[color-mix(in_srgb,var(--color-primary),white_12%)]",
+              )}
+            >
+              <TreeStructure weight="bold" aria-hidden />
+              Organisation
+            </Link>
+            <Link
+              to="/employees"
+              className={cn(
+                buttonVariants({ size: "lg" }),
+                "rounded-full bg-secondary font-bold text-foreground ring-1 ring-border hover:bg-[color-mix(in_srgb,var(--color-secondary),var(--color-foreground)_8%)]",
+              )}
+            >
+              Employees
+              <ArrowRight weight="bold" aria-hidden />
+            </Link>
+             <Link
+    to="/account"
+    className={cn(
+      buttonVariants({ size: "lg" }),
+      "rounded-full bg-secondary font-bold text-foreground ring-1 ring-border hover:bg-[color-mix(in_srgb,var(--color-secondary),var(--color-foreground)_8%)]",
+    )}
+  >
+    <UserCircle weight="bold" aria-hidden />
+    Account
+  </Link>
+          </div>
+        </div>
+
+        {/* ---- Small facts row, no second avatar ---- */}
+        <ul className="flex flex-wrap gap-x-6 gap-y-2 text-sm text-muted-foreground">
+          <li className="flex items-center gap-2">
+            <EnvelopeSimple size={16} weight="bold" aria-hidden />
+            <span className="truncate">{user?.email ?? "No email"}</span>
+          </li>
+          <li className="flex items-center gap-2">
+            <IdentificationCard size={16} weight="bold" aria-hidden />
+            <span>Lineari account</span>
+          </li>
+          {user?.created_at && (
+            <li className="flex items-center gap-2">
+              <CalendarBlank size={16} weight="bold" aria-hidden />
+              <span>
+                Member since{" "}
+                {new Date(user.created_at).toLocaleDateString(undefined, {
+                  month: "short",
+                  year: "numeric",
+                })}
+              </span>
+            </li>
+          )}
+        </ul>
+
+        {/* ---- Team summary ---- */}
+        <div className="grid gap-6 lg:grid-cols-[1fr_1.4fr]">
+          <div className="flex flex-col gap-3">
+            <h2 className="text-sm font-bold uppercase tracking-[0.18em] text-muted-foreground">
+              Reporting line
+            </h2>
+
+            {isLoading ? (
+              <div className="h-24 animate-pulse rounded-2xl bg-muted" />
+            ) : !me ? (
+              <p className="rounded-2xl border border-border/60 px-4 py-3 text-sm text-muted-foreground">
+                {tree.length === 0
+                  ? "No employees in the directory yet."
+                  : "Couldn't match your account to an employee record."}
+              </p>
+            ) : (
+              <div className="flex flex-col gap-2">
+                {manager ? (
+                  <PersonChip node={manager} label="Reports to" />
+                ) : (
+                  <div className="rounded-2xl border border-border/60 px-4 py-3 text-sm text-muted-foreground">
+                    {chain.length === 0 ? "No manager — top of the tree." : "Manager not shown."}
+                  </div>
+                )}
+
+                <div className="rounded-2xl border border-border/60 bg-[color-mix(in_srgb,var(--color-card),transparent_40%)] px-4 py-3">
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+                    You
+                  </p>
+                  <p className="truncate text-sm font-bold text-foreground">
+                    {me.node.name} {me.node.surname}
+                  </p>
+                  <p className="truncate text-xs text-muted-foreground">{me.node.role}</p>
+                </div>
+
+                {chain.length > 1 && (
+                  <div className="rounded-2xl border border-dashed border-border/70 px-4 py-3">
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+                      Chain above
+                    </p>
+                    <p className="truncate text-xs text-muted-foreground">
+                      {chain
+                        .slice(0, -1)
+                        .map((a) => `${a.name} ${a.surname}`)
+                        .join(" → ")}
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
+          <div className="flex flex-col gap-3">
+            <div className="flex items-baseline justify-between gap-3">
+              <h2 className="text-sm font-bold uppercase tracking-[0.18em] text-muted-foreground">
+                Your team
+              </h2>
+              <span className="text-xs font-semibold text-muted-foreground">
+                {reportsTotal} {reportsTotal === 1 ? "report" : "reports"}
+              </span>
+            </div>
+
+            {isLoading ? (
+              <div className="h-24 animate-pulse rounded-2xl bg-muted" />
+            ) : !me || reports.length === 0 ? (
+              <p className="rounded-2xl border border-border/60 px-4 py-3 text-sm text-muted-foreground">
+                {me
+                  ? "No direct reports yet."
+                  : "Sign-in data not available for this workspace."}
+              </p>
+            ) : (
+              <ul className="flex flex-col gap-2">
+                {reports.slice(0, 6).map((r) => (
+                  <li key={r.id}>
+                    <PersonChip node={r} />
+                  </li>
+                ))}
+                {reports.length > 6 && (
+                  <li>
+                    <Link
+                      to="/organisation"
+                      className="flex items-center justify-between rounded-2xl border border-border/60 px-4 py-2 text-sm font-semibold text-muted-foreground hover:text-foreground"
+                    >
+                      {reports.length - 6} more
+                      <CaretRight size={14} weight="bold" />
+                    </Link>
+                  </li>
+                )}
+              </ul>
+            )}
+          </div>
+        </div>
+
+        {/* ---- Workspace stats ---- */}
+        <div className="grid grid-cols-3 gap-3">
+          <Stat label="People" value={total} loading={isLoading} />
+          <Stat label="Top-level" value={topLevel} loading={isLoading} />
+          <Stat label="Links" value={links} loading={isLoading} />
+        </div>
+
+        <div className="flex items-center justify-between gap-3 text-sm">
+          <span className="flex items-center gap-2 text-muted-foreground">
+            <Users size={16} weight="bold" aria-hidden />
+            You are part of this workspace
+          </span>
+            
+          
+        </div>
+      </div>
+    </section>
+  );
+}
+</file>
+
 <file path="web/src/components/organisms/top-nav.tsx">
 import { forwardRef, type ComponentProps } from "react";
 import { Link, useLocation } from "react-router-dom";
@@ -9468,6 +10654,80 @@ export function TopNav() {
 }
 </file>
 
+<file path="web/src/main.tsx">
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { StrictMode } from 'react'
+import { createRoot } from 'react-dom/client'
+import { BrowserRouter } from 'react-router-dom'
+import App from './App'
+import './index.css'
+
+const queryClient = new QueryClient()
+
+createRoot(document.getElementById('root')!).render(
+  <StrictMode>
+    <QueryClientProvider client={queryClient}>
+      <BrowserRouter>
+
+  <App />
+        
+      </BrowserRouter>
+    </QueryClientProvider>
+  </StrictMode>,
+)
+</file>
+
+<file path="api/app/main.py">
+from fastapi import Depends, FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy import text
+from .auth.deps import get_current_user
+from .config import settings
+from .db import engine
+from .errors import register_error_handlers
+from .routers import auth, employees, hierarchy
+
+app = FastAPI(title="Lineari API", version="0.1.0")
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=settings.cors_origins.split(","),
+    allow_credentials=True,  # needed so the browser sends and accepts the auth cookies
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+register_error_handlers(app)
+app.include_router(auth.router)
+app.include_router(employees.router, dependencies=[Depends(get_current_user)])
+app.include_router(hierarchy.router, dependencies=[Depends(get_current_user)])
+
+
+@app.get("/health")
+def health():
+    with engine.connect() as conn:
+        conn.execute(text("SELECT 1"))
+    return {"status": "ok"}
+</file>
+
+<file path="web/src/components/templates/app-layout.tsx">
+import { Outlet } from "react-router-dom";
+import { TopNav } from "@/components/organisms/top-nav";
+import { AppBackground } from "../../effects/background";
+
+export function AppLayout() {
+  return (
+    <div className="relative min-h-dvh text-foreground">
+      <AppBackground />
+      <div className="relative z-10">
+        <TopNav />
+        <main className="mx-auto max-w-7xl px-4 pb-12 pt-6 md:px-6">
+          <Outlet />
+        </main>
+      </div>
+    </div>
+  );
+}
+</file>
+
 <file path="web/src/index.css">
 @import "tailwindcss";
 
@@ -9551,80 +10811,6 @@ export function TopNav() {
     font-family: var(--font-sans);
     transition: background-color 200ms ease, color 200ms ease;
   }
-}
-</file>
-
-<file path="web/src/main.tsx">
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { StrictMode } from 'react'
-import { createRoot } from 'react-dom/client'
-import { BrowserRouter } from 'react-router-dom'
-import App from './App'
-import './index.css'
-
-const queryClient = new QueryClient()
-
-createRoot(document.getElementById('root')!).render(
-  <StrictMode>
-    <QueryClientProvider client={queryClient}>
-      <BrowserRouter>
-
-  <App />
-        
-      </BrowserRouter>
-    </QueryClientProvider>
-  </StrictMode>,
-)
-</file>
-
-<file path="api/app/main.py">
-from fastapi import Depends, FastAPI
-from fastapi.middleware.cors import CORSMiddleware
-from sqlalchemy import text
-from .auth.deps import get_current_user
-from .config import settings
-from .db import engine
-from .errors import register_error_handlers
-from .routers import auth, employees, hierarchy
-
-app = FastAPI(title="Lineari API", version="0.1.0")
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=settings.cors_origins.split(","),
-    allow_credentials=True,  # needed so the browser sends and accepts the auth cookies
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-register_error_handlers(app)
-app.include_router(auth.router)
-app.include_router(employees.router, dependencies=[Depends(get_current_user)])
-app.include_router(hierarchy.router, dependencies=[Depends(get_current_user)])
-
-
-@app.get("/health")
-def health():
-    with engine.connect() as conn:
-        conn.execute(text("SELECT 1"))
-    return {"status": "ok"}
-</file>
-
-<file path="web/src/components/templates/app-layout.tsx">
-import { Outlet } from "react-router-dom";
-import { TopNav } from "@/components/organisms/top-nav";
-import { AppBackground } from "../../effects/background";
-
-export function AppLayout() {
-  return (
-    <div className="relative min-h-dvh text-foreground">
-      <AppBackground />
-      <div className="relative z-10">
-        <TopNav />
-        <main className="mx-auto max-w-7xl px-4 pb-12 pt-6 md:px-6">
-          <Outlet />
-        </main>
-      </div>
-    </div>
-  );
 }
 </file>
 
@@ -10092,15 +11278,18 @@ import EmployeesPage from "@/pages/employee-page";
 import TermsPage from "@/pages/terms-page";
 import { useEmployees } from "@/hooks/useEmployees";
 import { useHierarchy } from "@/hooks/useHierarchy";
+import AccountPage from "@/pages/account-page";
 import { useMe } from "@/hooks/useAuth";
 
 function OverviewRoute() {
-  const { data, isLoading } = useEmployees();
+  const { data: employees, isLoading } = useEmployees();
   const { data: me } = useMe();
+  const { data: hierarchy } = useHierarchy();
+
   return (
     <OverviewPage
       isLoading={isLoading}
-      employees={data?.map((e) => ({ id: e.id, managerId: e.manager_id }))}
+      employees={employees?.map((e) => ({ id: e.id, managerId: e.manager_id }))}
       user={
         me
           ? {
@@ -10109,6 +11298,7 @@ function OverviewRoute() {
             }
           : null
       }
+      hierarchy={hierarchy}
     />
   );
 }
@@ -10132,6 +11322,7 @@ export default function App() {
           <Route index element={<OverviewRoute />} />
           <Route path="organisation" element={<OrganisationRoute />} />
           <Route path="employees" element={<EmployeesPage />} />
+          <Route path="account" element={<AccountPage />} />
           <Route path="table" element={<Navigate to="/employees" replace />} />
         </Route>
       </Route>
