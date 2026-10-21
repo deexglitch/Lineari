@@ -11,6 +11,7 @@ import { useEmployees } from "@/hooks/useEmployees";
 import { useHierarchy } from "@/hooks/useHierarchy";
 import AccountPage from "@/pages/account-page";
 import { useMe } from "@/hooks/useAuth";
+import GuidePage from "@/pages/guide-page";
 
 function OverviewRoute() {
   const { data: employees, isLoading } = useEmployees();
@@ -56,6 +57,7 @@ export default function App() {
           <Route path="organisation" element={<OrganisationRoute />} />
           <Route path="employees" element={<EmployeesPage />} />
           <Route path="account" element={<AccountPage />} />
+           <Route path="guide" element={<GuidePage />} />  
           <Route path="table" element={<Navigate to="/employees" replace />} />
         </Route>
       </Route>
