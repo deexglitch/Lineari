@@ -65,6 +65,7 @@ export function AccountProfileCard({ user }: { user: AuthUser }) {
             autoComplete="given-name"
             required
             error={fieldErrors.first_name}
+            variant="themed"
           />
           <AuthField
             label="Last name"
@@ -74,6 +75,7 @@ export function AccountProfileCard({ user }: { user: AuthUser }) {
             autoComplete="family-name"
             required
             error={fieldErrors.last_name}
+            variant="themed"
           />
           <AuthField
             label="Email"
@@ -84,6 +86,7 @@ export function AccountProfileCard({ user }: { user: AuthUser }) {
             className="sm:col-span-2"
             required
             error={fieldErrors.email}
+            variant="themed"
           />
 
           {generalError && (

@@ -24,11 +24,11 @@
   --color-primary-foreground: #ffffff;
   --color-secondary: var(--line);
   --color-secondary-foreground: var(--ink);
-  --color-muted: #e3ecea;
+  --color-muted: var(--muted);
   --color-muted-foreground: var(--ink-mute);
   --color-accent: var(--accent-2);
   --color-accent-foreground: var(--ink);
-  --color-destructive: #c93c3c;
+  --color-destructive: var(--destructive);
   --color-border: var(--line);   /* ← this makes border-border work */
   --color-input: var(--line);
   --color-ring: var(--accent);
@@ -37,19 +37,21 @@
 /* 3. The actual variable values — light by default */
 :root,
 .light {
-  --bg:        #eef4f2;
-  --bg-elev:   #ffffff;
-  --ink:       #10201e;
-  --ink-soft:  #3d5350;
-  --ink-mute:  #6a7d7a;
-  --line:      #d5e3df;
+  --bg:        #d4e4df;
+  --bg-elev:   #eaf3f0;
+  --ink:       #0c1f1d;
+  --ink-soft:  #2d4542;
+  --ink-mute:  #4a605d;
+  --line:      #a9c6bf;
+  --muted:     #c2d8d2;
   --accent:    #0b6e6a;
   --accent-2:  #b6d777;
   --coral:     #f2674a;
-  --glass-top: rgb(255 255 255 / 0.72);
-  --glass-bot: rgb(213 227 223 / 0.55);
-  --glass-edge: rgb(16 32 30 / 0.08);
-  --glass-shine: rgb(255 255 255 / 0.9);
+  --destructive: #c93c3c;
+  --glass-top:   rgb(226 238 234 / 0.66);
+  --glass-bot:   rgb(168 200 192 / 0.5);
+  --glass-edge:  rgb(11 110 106 / 0.2);
+  --glass-shine: rgb(255 255 255 / 0.5);
 }
 
 .dark {
@@ -66,6 +68,8 @@
   --glass-bot: rgb(5 20 19 / 0.55);
   --glass-edge: rgb(213 227 223 / 0.14);
   --glass-shine: rgb(213 227 223 / 0.22);
+  --muted: rgb(213 227 223 / 0.10);
+  --destructive: #e5645a;
 }
 
 @layer base {
@@ -80,4 +84,20 @@
     font-family: var(--font-sans);
     transition: background-color 200ms ease, color 200ms ease;
   }
+}
+
+@layer components {
+  .glass-panel {
+    position: relative;
+    background: linear-gradient(145deg, var(--glass-top), var(--glass-bot));
+    -webkit-backdrop-filter: blur(16px) saturate(1.15);
+    backdrop-filter: blur(16px) saturate(1.15);
+    box-shadow:
+      inset 0 1px 0 var(--glass-shine),
+      inset 0 0 0 1px var(--glass-edge),
+      0 20px 50px -24px rgb(0 0 0 / 0.5);
+  }
+  .glass-panel--inset { box-shadow: inset 0 1px 0 var(--glass-shine), inset 0 0 0 1px var(--glass-edge); }
+  .glass-tab { color: var(--ink-soft); }
+  .glass-tab.active { color: var(--ink); }
 }

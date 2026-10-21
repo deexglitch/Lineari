@@ -12,10 +12,14 @@ import {
   type Employee,
 } from "@/hooks/useEmployeeDirectory";
 import { cn } from "@/lib/utils";
+import { useMe } from "@/hooks/useAuth";
 
 export default function EmployeesPage() {
   const { data, isLoading, isError } = useEmployees();
   const directory = useEmployeeDirectory(data ?? []);
+  const { data: me, isLoading: meLoading } = useMe();
+  const isAdmin = me?.role === "admin";
+
   const [addOpen, setAddOpen] = useState(false);
   const [deleting, setDeleting] = useState<Employee | null>(null);
   const [editing, setEditing] = useState<Employee | null>(null);
@@ -37,17 +41,19 @@ export default function EmployeesPage() {
             </p>
           </div>
           <div className="flex flex-wrap gap-3">
-            <button
-              type="button"
-              onClick={() => setAddOpen(true)}
-              className={cn(
-                buttonVariants({ size: "lg" }),
-                "rounded-full bg-primary font-bold text-primary-foreground hover:bg-[color-mix(in_srgb,var(--color-primary),white_12%)]",
-              )}
-            >
-              <Plus weight="bold" aria-hidden />
-              Add employee
-            </button>
+            {!meLoading && isAdmin && (
+              <button
+                type="button"
+                onClick={() => setAddOpen(true)}
+                className={cn(
+                  buttonVariants({ size: "lg" }),
+                  "rounded-full bg-primary font-bold text-primary-foreground hover:bg-[color-mix(in_srgb,var(--color-primary),white_12%)]",
+                )}
+              >
+                <Plus weight="bold" aria-hidden />
+                Add employee
+              </button>
+            )}
             <Link
               to="/organisation"
               className={cn(
@@ -100,29 +106,36 @@ export default function EmployeesPage() {
             sortDir={directory.sortDir}
             onSort={directory.toggleSort}
             onClearSearch={() => directory.setQuery("")}
-            onAddFirst={() => setAddOpen(true)}
-            onDelete={(employee) => setDeleting(employee)}
-            onEdit={(employee) => setEditing(employee)}
+            onAddFirst={() => {
+              if (isAdmin) setAddOpen(true);
+            }}
+            onDelete={isAdmin ? (employee) => setDeleting(employee) : undefined}
+            onEdit={isAdmin ? (employee) => setEditing(employee) : undefined}
           />
         </div>
       </section>
 
-      <AddEmployeeDialog
-        open={addOpen}
-        onClose={() => setAddOpen(false)}
-        managers={directory.managers}
-      />
+      {isAdmin && (
+        <>
+          <AddEmployeeDialog
+            open={addOpen}
+            onClose={() => setAddOpen(false)}
+            managers={directory.managers}
+          />
 
-      <DeleteEmployeeDialog
-        employee={deleting}
-        all={data ?? []}
-        onClose={() => setDeleting(null)}
-      />
-      <EditEmployeeDialog
-        employee={editing}
-        managers={directory.managers}
-        onClose={() => setEditing(null)}
-      />
+          <DeleteEmployeeDialog
+            employee={deleting}
+            all={data ?? []}
+            onClose={() => setDeleting(null)}
+          />
+
+          <EditEmployeeDialog
+            employee={editing}
+            managers={directory.managers}
+            onClose={() => setEditing(null)}
+          />
+        </>
+      )}
     </div>
   );
 }

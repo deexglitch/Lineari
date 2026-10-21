@@ -60,6 +60,7 @@ export function AccountPasswordCard() {
             autoComplete="current-password"
             required
             error={fieldErrors.current_password}
+            variant="themed"
           />
           <AuthField
             label="New password"
@@ -69,6 +70,7 @@ export function AccountPasswordCard() {
             required
             hint="At least 8 characters with upper and lower case letters, a number and a symbol."
             error={fieldErrors.new_password}
+            variant="themed"
           />
           <AuthField
             label="Confirm new password"
@@ -77,6 +79,7 @@ export function AccountPasswordCard() {
             autoComplete="new-password"
             required
             error={mismatch}
+            variant="themed"
           />
 
           {generalError && (

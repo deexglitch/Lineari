@@ -3,16 +3,11 @@ import { PencilSimple, X } from "@phosphor-icons/react";
 import { cn } from "@/lib/utils";
 import { useUpdateEmployee } from "@/hooks/useUpdateEmployee";
 import type { Employee } from "@/hooks/useEmployeeDirectory";
+import { FRIENDLY_ERRORS } from "@/lib/constants";
 
 export type ManagerOption = { id: string; label: string };
 
-const FRIENDLY_ERRORS: Record<string, string> = {
-  duplicate_email: "That email address is already used by another employee.",
-  duplicate_employee_number: "That employee number is already in use.",
-  not_found: "The selected manager no longer exists. Pick another one.",
-  self_manager: "An employee cannot be their own manager.",
-  circular_reporting_line: "That would create a circular reporting line.",
-};
+
 
 const inputClass =
   "rounded-xl border border-border bg-background px-3 py-2.5 text-base text-foreground outline-none placeholder:text-muted-foreground focus:ring-2 focus:ring-ring/60 [color-scheme:light] dark:[color-scheme:dark]";

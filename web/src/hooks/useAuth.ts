@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ApiError, fetchJson } from "@/lib/api";
 
-export type AuthUser = { email: string; first_name: string; last_name: string; created_at: string; };
+export type AuthUser = { email: string; first_name: string; last_name: string; role: string; created_at: string; };
 export type LoginInput = { email: string; password: string };
 export type SignupInput = LoginInput & { first_name: string; last_name: string };
 

@@ -34,16 +34,12 @@ function initials(name: string) {
 function findWithPath(
   nodes: HierarchyNode[],
   name: string,
-  email?: string,
 ): { node: HierarchyNode; ancestors: HierarchyNode[] } | null {
   const target = name.trim().toLowerCase();
-  const mail = email?.trim().toLowerCase();
   const walk = (list: HierarchyNode[], path: HierarchyNode[]): ReturnType<typeof findWithPath> => {
     for (const n of list) {
       const full = `${n.name} ${n.surname}`.trim().toLowerCase();
-      const match =
-        (mail && n.avatar_url?.toLowerCase().includes(mail)) || false || full === target;
-      if (match) return { node: n, ancestors: path };
+      if (full === target) return { node: n, ancestors: path };
       const deeper = walk(n.children, [...path, n]);
       if (deeper) return deeper;
     }
@@ -130,7 +126,7 @@ export function ProfilePanel({
 }) {
   const firstName = user?.name.split(/\s+/)[0];
   const tree = hierarchy ?? [];
-  const me = user ? findWithPath(tree, user.name, user.email) : null;
+  const me = user ? findWithPath(tree, user.name) : null;
 
   const manager = me?.ancestors.length ? me.ancestors[me.ancestors.length - 1] : null;
   const reports = me?.node.children ?? [];
@@ -139,7 +135,8 @@ export function ProfilePanel({
 
   // Prefer the role carried on the profile; fall back to the matched
   // employee's role once the hierarchy lookup resolves.
-  const role = user?.role ?? me?.node.role ?? "Role unavailable";
+  const roleLabel = user?.role === "admin" ? "Administrator" : "Viewer";
+const role = user?.role ? roleLabel : (me?.node.role ?? "Role unavailable");
 
   return (
     <section className="glass-panel rounded-[2rem] text-foreground">
@@ -182,6 +179,7 @@ export function ProfilePanel({
                 "rounded-full bg-secondary font-bold text-foreground ring-1 ring-border hover:bg-[color-mix(in_srgb,var(--color-secondary),var(--color-foreground)_8%)]",
               )}
             >
+              <Users weight="bold" aria-hidden />
               Employees
               <ArrowRight weight="bold" aria-hidden />
             </Link>

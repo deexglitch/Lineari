@@ -17,6 +17,9 @@ export function useDeleteEmployee() {
         method: "DELETE",
       });
     },
-    onSuccess: () => queryClient.invalidateQueries(),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["employees"] });
+      queryClient.invalidateQueries({ queryKey: ["hierarchy"] });
+    },
   });
 }
