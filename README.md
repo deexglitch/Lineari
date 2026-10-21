@@ -13,7 +13,7 @@
 
 **Create and manage employees, set reporting lines, explore the org chart visually, and keep employee information in one place.**
 
-[Features](#-features) · [Architecture](#-architecture) · [Getting started](#-getting-started) · [API](#-the-api) · [Contributing](#-changing-the-api)
+[Technical architecture](docs/architecture/technical.md) · [User guide](docs/architecture/user-guide.md) · [Brand identity](docs/design/brand-identity)
 
 </div>
 
@@ -23,13 +23,13 @@
 
 | Feature | What it does |
 |---|---|
- | **Employee directory** | Create, read, update and delete employees with search, filtering, sorting and pagination. |
- | **Reporting lines** | Assign any employee a manager, with automatic guards against self-management and circular reporting chains. |
- | **Organisation chart** | Nested hierarchy view with expand/collapse, live search and a level count. |
- | **Overview dashboard** | Total employees, top-level roles and reporting-link counts, animated with a count-up. |
- | **Gravatar avatars** | Derived automatically from each employee's email. |
- | **Safe deletes** | Deleting a manager requires reassigning their direct reports (or explicitly orphaning them). |
- | **Friendly errors** | The API returns a stable `{ code, message }` shape that the frontend maps to human-readable messages. |
+| **Employee directory** | Create, read, update and delete employees with search, filtering, sorting and pagination. |
+| **Reporting lines** | Assign any employee a manager, with automatic guards against self-management and circular reporting chains. |
+| **Organisation chart** | Nested hierarchy view with expand/collapse, live search and a level count. |
+| **Overview dashboard** | Total employees, top-level roles and reporting-link counts, animated with a count-up. |
+| **Gravatar avatars** | Derived automatically from each employee's email. |
+| **Safe deletes** | Deleting a manager requires reassigning their direct reports (or explicitly orphaning them). |
+| **Friendly errors** | The API returns a stable `{ code, message }` shape that the frontend maps to human-readable messages. |
 
 <div align="center">
   <img src="assets/org-chart.svg" alt="Organisation chart preview" width="85%">
@@ -157,7 +157,7 @@ The full contract lives at [`contract/openapi.yaml`](contract/openapi.yaml). Onc
 ### Endpoints
 
 | Method | Path | Purpose |
-|---|---|---|
+|---|---|
 | `GET` | `/health` | Service + DB health |
 | `GET` | `/employees` | List with search, filters, sort, pagination |
 | `POST` | `/employees` | Create an employee |
@@ -233,16 +233,6 @@ Components are organised by responsibility, from smallest to largest:
 
 ---
 
-## Brand
-
-<div align="center">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="assets/logo-light.webp">
-    <img src="assets/light_logo.png" alt="Lineari logo" width="360">
-  </picture>
-</div>
-
----
 
 ## License
 
