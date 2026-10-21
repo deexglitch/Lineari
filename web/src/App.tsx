@@ -9,6 +9,7 @@ import EmployeesPage from "@/pages/employee-page";
 import TermsPage from "@/pages/terms-page";
 import { useEmployees } from "@/hooks/useEmployees";
 import { useHierarchy } from "@/hooks/useHierarchy";
+import AccountPage from "@/pages/account-page";
 import { useMe } from "@/hooks/useAuth";
 
 function OverviewRoute() {
@@ -52,6 +53,7 @@ export default function App() {
           <Route index element={<OverviewRoute />} />
           <Route path="organisation" element={<OrganisationRoute />} />
           <Route path="employees" element={<EmployeesPage />} />
+          <Route path="account" element={<AccountPage />} />
           <Route path="table" element={<Navigate to="/employees" replace />} />
         </Route>
       </Route>

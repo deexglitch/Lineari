@@ -185,6 +185,16 @@ export function ProfilePanel({
               Employees
               <ArrowRight weight="bold" aria-hidden />
             </Link>
+             <Link
+    to="/account"
+    className={cn(
+      buttonVariants({ size: "lg" }),
+      "rounded-full bg-secondary font-bold text-foreground ring-1 ring-border hover:bg-[color-mix(in_srgb,var(--color-secondary),var(--color-foreground)_8%)]",
+    )}
+  >
+    <UserCircle weight="bold" aria-hidden />
+    Account
+  </Link>
           </div>
         </div>
 
@@ -317,9 +327,8 @@ export function ProfilePanel({
             <Users size={16} weight="bold" aria-hidden />
             You are part of this workspace
           </span>
-          <Link to="/account" className="font-bold text-primary hover:underline">
-            Account settings
-          </Link>
+            
+          
         </div>
       </div>
     </section>

@@ -58,6 +58,7 @@ class UserOut(BaseModel):
     email: EmailStr
     first_name: str
     last_name: str
+    created_at: datetime
 
 
 class MessageOut(BaseModel):
@@ -168,3 +169,69 @@ def logout(
 @router.get("/me", response_model=UserOut)
 def me(user: Annotated[User, Depends(get_current_user)]):
     return user
+
+class ProfileUpdateRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+
+    email: EmailStr | None = None
+    first_name: Name | None = None
+    last_name: Name | None = None
+
+
+class PasswordChangeRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+
+    current_password: str = Field(min_length=1, max_length=128)
+    new_password: str
+
+    @field_validator("new_password")
+    @classmethod
+    def strong_password(cls, value: str) -> str:
+        return validate_password_strength(value)
+
+
+@router.patch("/me", response_model=UserOut)
+def update_me(
+    payload: ProfileUpdateRequest,
+    db: Annotated[Session, Depends(get_db)],
+    user: Annotated[User, Depends(get_current_user)],
+):
+    changes = payload.model_dump(exclude_unset=True)
+
+    if "email" in changes:
+        email = changes["email"].lower()
+        if email != user.email:
+            taken = db.scalar(
+                select(User.id).where(User.email == email, User.id != user.id)
+            )
+            if taken:
+                raise AppError(409, "duplicate_email", "That email is already in use")
+            user.email = email
+
+    if "first_name" in changes:
+        user.first_name = changes["first_name"]
+    if "last_name" in changes:
+        user.last_name = changes["last_name"]
+
+    db.commit()
+    db.refresh(user)
+    return user
+
+
+@router.post("/me/password", response_model=MessageOut)
+def change_password(
+    payload: PasswordChangeRequest,
+    db: Annotated[Session, Depends(get_db)],
+    user: Annotated[User, Depends(get_current_user)],
+):
+    if not verify_password(payload.current_password, user.hashed_password):
+        raise AppError(401, "invalid_credentials", "Current password is incorrect")
+
+    user.hashed_password = hash_password(payload.new_password)
+
+    # Revoke every refresh token so any other signed-in session ends.
+    db.execute(
+        update(RefreshToken).where(RefreshToken.user_id == user.id).values(revoked=True)
+    )
+    db.commit()
+    return MessageOut(message="Password updated")

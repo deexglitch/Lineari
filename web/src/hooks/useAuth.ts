@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ApiError, fetchJson } from "@/lib/api";
 
-export type AuthUser = { email: string; first_name: string; last_name: string };
+export type AuthUser = { email: string; first_name: string; last_name: string; created_at: string; };
 export type LoginInput = { email: string; password: string };
 export type SignupInput = LoginInput & { first_name: string; last_name: string };
 
@@ -55,5 +55,40 @@ export function useLogout() {
       queryClient.removeQueries({ predicate: (q) => q.queryKey[0] !== ME[0] });
       queryClient.setQueryData(ME, null);
     },
+  });
+}
+
+export type ProfileUpdateInput = {
+  first_name?: string;
+  last_name?: string;
+  email?: string;
+};
+
+export function useUpdateProfile() {
+  const queryClient = useQueryClient();
+  return useMutation<AuthUser, ApiError, ProfileUpdateInput>({
+    mutationFn: (body) =>
+      fetchJson<AuthUser>("/auth/me", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      }),
+    onSuccess: (user) => queryClient.setQueryData(ME, user),
+  });
+}
+
+export type PasswordChangeInput = {
+  current_password: string;
+  new_password: string;
+};
+
+export function useChangePassword() {
+  return useMutation<{ message: string }, ApiError, PasswordChangeInput>({
+    mutationFn: (body) =>
+      fetchJson<{ message: string }>("/auth/me/password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      }),
   });
 }
