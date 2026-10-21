@@ -8,4 +8,4 @@ export const FRIENDLY_ERRORS: Record<string, string> = {
 };
 
 export const inputClass =
-  "rounded-xl bg-[#e0d6ec]/10 px-3 py-2.5 text-base font-normal text-[#e0d6ec] ring-1 ring-[#e0d6ec]/25 outline-none placeholder:text-[#e0d6ec]/45 focus:ring-2 focus:ring-[#e0d6ec]/60 [color-scheme:dark]";
+  "rounded-xl border border-border bg-[color-mix(in_srgb,var(--color-card),transparent_30%)] px-3 py-2.5 text-base text-foreground outline-none placeholder:text-muted-foreground shadow-[inset_0_1px_0_var(--glass-shine)] backdrop-blur-sm focus:ring-2 focus:ring-ring/60 [color-scheme:light] dark:[color-scheme:dark]";
