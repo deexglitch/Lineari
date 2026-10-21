@@ -5,13 +5,22 @@ info:
   description: >
     This serves as the Lineari employee hierarchy API. This file is the source of truth:
     the FastAPI implementation and react client are built to match this.
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
 servers:
   - url: http://localhost:8000
     description: local dev
 tags:
   - name: Employees
+    description: CRUD for employee records and reporting lines.
   - name: Hierarchy
+    description: The organisation tree and per-employee ancestor chains.
   - name: System
+    description: Health and meta endpoints.
+
+security:
+  - cookieAuth: []
 
 paths:
   # this is the health check endpoint
@@ -20,6 +29,7 @@ paths:
       tags: [System]
       operationId: getHealth
       summary: Service and db health check
+      security: []
       responses:
         "200":
           description: Service health is up
@@ -32,6 +42,12 @@ paths:
                   status:
                     type: string
                     enum: [ok]
+        "500":
+          description: Database unreachable
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
 
   # setting up the employee endpoint for data so frontend matches this
   /employees:
@@ -92,6 +108,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/EmployeeList"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
         "422":
           $ref: "#/components/responses/ValidationError"
     post:
@@ -111,6 +129,8 @@ paths:
             application/json:
               schema: 
                 $ref: "#/components/schemas/Employee"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
         "404":
           $ref: "#/components/responses/NotFound"
         "409":
@@ -133,6 +153,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Employee"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
         "404":
           $ref: "#/components/responses/NotFound"
     patch:
@@ -152,6 +174,8 @@ paths:
             application/json:
               schema: 
                 $ref: "#/components/schemas/Employee"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
         "404":
           $ref: "#/components/responses/NotFound"
         "409":
@@ -177,6 +201,8 @@ paths:
       responses:
         "204":
           description: Employee successfully deleted
+        "401":
+          $ref: "#/components/responses/Unauthorized"
         "404":
           $ref: "#/components/responses/NotFound"
         "409":
@@ -202,6 +228,8 @@ paths:
                 type: array
                 items:
                   $ref: "#/components/schemas/Employee"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
         "404":
           $ref: "#/components/responses/NotFound"
 
@@ -231,10 +259,22 @@ paths:
                 type: array
                 items:
                   $ref: "#/components/schemas/HierarchyNode"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
         "404":
           $ref: "#/components/responses/NotFound"
  
 components:
+  securitySchemes:
+    cookieAuth:
+      type: apiKey
+      in: cookie
+      name: lineari_access
+      description: >
+        Session is carried by the `lineari_access` HTTP-only cookie set on
+        login/signup. `/auth/refresh` rotates both cookies when the access
+        token expires.
+
   parameters:
     EmployeeId:
       name: employee_id
@@ -375,6 +415,8 @@ components:
             - self_manager
             - circular_reporting_line
             - has_direct_reports
+            - unauthorized
+            - invalid_credentials
         message:
           type: string
         details:
@@ -400,4 +442,9 @@ components:
         application/json:
           schema:
             $ref: "#/components/schemas/Error"
- 
+    Unauthorized:
+      description: Missing or expired session cookie
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"

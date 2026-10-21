@@ -1,0 +1,82 @@
+/* Top-down org chart. Connectors are drawn with borders on each <li>. */
+.org-chart {
+  --org-line: rgb(224 214 236 / 0.35); /* #e0d6ec */
+  --org-gap: 28px;
+}
+
+.org-chart ul {
+  position: relative;
+  display: flex;
+  justify-content: center;
+  margin: 0;
+  padding: var(--org-gap) 0 0;
+  list-style: none;
+}
+
+.org-chart li {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: var(--org-gap) 12px 0;
+}
+
+/* Horizontal bar across siblings, and the drop down into each child */
+.org-chart li::before,
+.org-chart li::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  right: 50%;
+  width: 50%;
+  height: var(--org-gap);
+  border-top: 1px solid var(--org-line);
+}
+.org-chart li::after {
+  right: auto;
+  left: 50%;
+  border-left: 1px solid var(--org-line);
+}
+
+.org-chart li:only-child {
+  padding-top: 0;
+}
+.org-chart li:only-child::before,
+.org-chart li:only-child::after {
+  display: none;
+}
+
+.org-chart li:first-child::before,
+.org-chart li:last-child::after {
+  border: 0 none;
+}
+.org-chart li:last-child::before {
+  border-right: 1px solid var(--org-line);
+  border-top: 1px solid var(--org-line);
+  border-top-right-radius: 12px;
+}
+.org-chart li:first-child::after {
+  border-top-left-radius: 12px;
+}
+
+/* Line from a manager down to their row of reports */
+.org-chart ul ul::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 50%;
+  height: var(--org-gap);
+  border-left: 1px solid var(--org-line);
+}
+
+/* The outermost list holds the roots, so it gets no connectors */
+.org-chart > ul {
+  padding-top: 0;
+}
+.org-chart > ul > li {
+  padding-top: 0;
+}
+.org-chart > ul > li::before,
+.org-chart > ul > li::after {
+  display: none;
+}

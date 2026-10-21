@@ -1,0 +1,83 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* 1. Brand palette — static, never changes */
+@theme {
+  --color-brand-teal: #0b6e6a;
+  --color-brand-lime: #b6d777;
+  --color-brand-coral: #f2674a;
+  --color-brand-mist: #d5e3df;
+  --color-brand-plum: #2b1d3a;
+
+  --font-sans: "Manrope", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Quicksand", ui-sans-serif, system-ui, sans-serif;
+}
+
+/* 2. Semantic tokens — these GENERATE the utilities (border-border, bg-background, etc.) */
+@theme inline {
+  --color-background: var(--bg);
+  --color-foreground: var(--ink);
+  --color-card: var(--bg-elev);
+  --color-card-foreground: var(--ink);
+  --color-primary: var(--accent);
+  --color-primary-foreground: #ffffff;
+  --color-secondary: var(--line);
+  --color-secondary-foreground: var(--ink);
+  --color-muted: #e3ecea;
+  --color-muted-foreground: var(--ink-mute);
+  --color-accent: var(--accent-2);
+  --color-accent-foreground: var(--ink);
+  --color-destructive: #c93c3c;
+  --color-border: var(--line);   /* ← this makes border-border work */
+  --color-input: var(--line);
+  --color-ring: var(--accent);
+}
+
+/* 3. The actual variable values — light by default */
+:root,
+.light {
+  --bg:        #eef4f2;
+  --bg-elev:   #ffffff;
+  --ink:       #10201e;
+  --ink-soft:  #3d5350;
+  --ink-mute:  #6a7d7a;
+  --line:      #d5e3df;
+  --accent:    #0b6e6a;
+  --accent-2:  #b6d777;
+  --coral:     #f2674a;
+  --glass-top: rgb(255 255 255 / 0.72);
+  --glass-bot: rgb(213 227 223 / 0.55);
+  --glass-edge: rgb(16 32 30 / 0.08);
+  --glass-shine: rgb(255 255 255 / 0.9);
+}
+
+.dark {
+  --bg:        #050f0e;
+  --bg-elev:   #0a1a18;
+  --ink:       #f1f7f5;
+  --ink-soft:  #cfe0dc;
+  --ink-mute:  #8ba39e;
+  --line:      rgb(213 227 223 / 0.18);
+  --accent:    #0e857f;
+  --accent-2:  #b6d777;
+  --coral:     #f2674a;
+  --glass-top: rgb(11 110 106 / 0.30);
+  --glass-bot: rgb(5 20 19 / 0.55);
+  --glass-edge: rgb(213 227 223 / 0.14);
+  --glass-shine: rgb(213 227 223 / 0.22);
+}
+
+@layer base {
+  * {
+    border-color: var(--color-border);   /* no @apply needed */
+  }
+  html, body, #root { height: 100%; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: var(--font-sans);
+    transition: background-color 200ms ease, color 200ms ease;
+  }
+}
