@@ -1,0 +1,97 @@
+@property --bento-near {
+  syntax: "<number>";
+  inherits: true;
+  initial-value: 0;
+}
+@property --bento-hot {
+  syntax: "<number>";
+  inherits: false;
+  initial-value: 0;
+}
+
+.bento-grid {
+  transition: --bento-near 400ms ease;
+}
+
+.bento-card {
+  --tint: 224 214 236; /* #d5e3df */
+  --bento-glow: var(--tint);
+  --glass-top: rgb(var(--tint) / 0.55);
+  --glass-bottom: rgb(var(--tint) / 0.2);
+  --glass-edge: rgb(var(--tint) / 0.45);
+  --glass-shine: rgb(var(--tint) / 0.7);
+
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  transition: --bento-hot 300ms ease;
+
+  background: linear-gradient(145deg, var(--glass-top), var(--glass-bottom));
+  -webkit-backdrop-filter: blur(24px) saturate(0);
+  backdrop-filter: blur(24px) saturate(0);
+  box-shadow:
+    inset 0 1px 0 var(--glass-shine),
+    inset 0 0 0 1px var(--glass-edge),
+    inset 0 -12px 24px -12px rgb(0 0 0 / 0.08),
+    0 10px 30px -10px rgb(0 0 0 / 0.25);
+}
+
+.bento-card[data-tone="smoke"] {
+  --glass-top: rgb(44 38 56 / 0.55);
+  --glass-bottom: rgb(14 10 22 / 0.45);
+  --glass-edge: rgb(var(--tint) / 0.14);
+  --glass-shine: rgb(var(--tint) / 0.25);
+}
+
+/* Spotlight that follows the pointer inside the hovered card */
+.bento-card::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  background: radial-gradient(
+    320px circle at var(--bento-x, -999px) var(--bento-y, -999px),
+    rgb(var(--bento-glow) / calc(0.22 * var(--bento-hot))),
+    transparent 70%
+  );
+}
+
+/* Edge glow that lights up on every card near the pointer */
+.bento-card::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  padding: 1px;
+  border-radius: inherit;
+  pointer-events: none;
+  background: radial-gradient(
+    260px circle at var(--bento-x, -999px) var(--bento-y, -999px),
+    rgb(var(--bento-glow) / calc(0.9 * var(--bento-near))),
+    transparent 70%
+  );
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask:
+    linear-gradient(#000 0 0) content-box exclude,
+    linear-gradient(#000 0 0);
+}
+
+.bento-card > *:not(.bento-ripple) {
+  position: relative;
+  z-index: 1;
+}
+
+.bento-ripple {
+  position: absolute;
+  z-index: 0;
+  border-radius: 50%;
+  translate: -50% -50%;
+  background: rgb(var(--bento-glow) / 0.4);
+  pointer-events: none;
+}
+
