@@ -2,6 +2,9 @@ export const FRIENDLY_ERRORS: Record<string, string> = {
   duplicate_email: "That email address is already used by another employee.",
   duplicate_employee_number: "That employee number is already in use.",
   not_found: "The selected manager no longer exists. Pick another one.",
+  forbidden: "Only administrators can change employee records.",
+  self_manager: "An employee cannot be their own manager.",
+  circular_reporting_line: "That would create a circular reporting line.",
 };
 
 export const inputClass =

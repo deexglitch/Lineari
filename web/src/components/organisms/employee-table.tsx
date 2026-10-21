@@ -88,39 +88,43 @@ export function EmployeeTable({
     );
   }
 
-  if (rows.length === 0) {
-    return (
-      <div className="flex flex-col items-start gap-4 px-2 py-8">
-        <p className="text-lg font-bold">
-          {searching ? `No one matches “${query.trim()}”.` : "No employees yet."}
+if (rows.length === 0) {
+  return (
+    <div className="flex flex-col items-start gap-4 px-2 py-8">
+      <p className="text-lg font-bold">
+        {searching ? `No one matches “${query.trim()}”.` : "No employees yet."}
+      </p>
+      {searching ? (
+        <button
+          type="button"
+          onClick={onClearSearch}
+          className={cn(
+            buttonVariants({ size: "lg" }),
+            "rounded-full bg-primary font-bold text-primary-foreground hover:bg-[color-mix(in_srgb,var(--color-primary),white_12%)]",
+          )}
+        >
+          Clear search
+        </button>
+      ) : onAddFirst ? (
+        <button
+          type="button"
+          onClick={onAddFirst}
+          className={cn(
+            buttonVariants({ size: "lg" }),
+            "rounded-full bg-primary font-bold text-primary-foreground hover:bg-[color-mix(in_srgb,var(--color-primary),white_12%)]",
+          )}
+        >
+          <Plus weight="bold" aria-hidden />
+          Add the first employee
+        </button>
+      ) : (
+        <p className="text-sm text-muted-foreground">
+          No employees have been added yet.
         </p>
-        {searching ? (
-          <button
-            type="button"
-            onClick={onClearSearch}
-            className={cn(
-              buttonVariants({ size: "lg" }),
-              "rounded-full bg-primary font-bold text-primary-foreground hover:bg-[color-mix(in_srgb,var(--color-primary),white_12%)]",
-            )}
-          >
-            Clear search
-          </button>
-        ) : (
-          <button
-            type="button"
-            onClick={onAddFirst}
-            className={cn(
-              buttonVariants({ size: "lg" }),
-              "rounded-full bg-primary font-bold text-primary-foreground hover:bg-[color-mix(in_srgb,var(--color-primary),white_12%)]",
-            )}
-          >
-            <Plus weight="bold" aria-hidden />
-            Add the first employee
-          </button>
-        )}
-      </div>
-    );
-  }
+      )}
+    </div>
+  );
+}
 
   return (
     <>

@@ -26,6 +26,8 @@ function OverviewRoute() {
           ? {
               name: `${me.first_name} ${me.last_name}`.trim() || me.email,
               email: me.email,
+              role: me.role,
+              created_at: me.created_at,
             }
           : null
       }

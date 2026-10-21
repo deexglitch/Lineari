@@ -58,24 +58,30 @@ export function EmployeeRow({
         >
           <TreeStructure size={16} weight="bold" aria-hidden />
         </Link>
-        <button
-          type="button"
-          onClick={() => onEdit?.(employee)}
-          className="grid size-8 place-items-center rounded-full text-muted-foreground hover:bg-secondary hover:text-foreground"
-          aria-label={`Edit ${fullName(employee)}`}
-          title="Edit"
-        >
-          <PencilSimple size={16} weight="bold" aria-hidden />
-        </button>
-        <button
-          type="button"
-          onClick={() => onDelete?.(employee)}
-          className="grid size-8 place-items-center rounded-full text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
-          aria-label={`Delete ${fullName(employee)}`}
-          title="Delete"
-        >
-          <Trash size={16} weight="bold" aria-hidden />
-        </button>
+
+        {onEdit && (
+          <button
+            type="button"
+            onClick={() => onEdit(employee)}
+            className="grid size-8 place-items-center rounded-full text-muted-foreground hover:bg-secondary hover:text-foreground"
+            aria-label={`Edit ${fullName(employee)}`}
+            title="Edit"
+          >
+            <PencilSimple size={16} weight="bold" aria-hidden />
+          </button>
+        )}
+
+        {onDelete && (
+          <button
+            type="button"
+            onClick={() => onDelete(employee)}
+            className="grid size-8 place-items-center rounded-full text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+            aria-label={`Delete ${fullName(employee)}`}
+            title="Delete"
+          >
+            <Trash size={16} weight="bold" aria-hidden />
+          </button>
+        )}
       </div>
     </li>
   );

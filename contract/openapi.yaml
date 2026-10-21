@@ -417,6 +417,7 @@ components:
             - has_direct_reports
             - unauthorized
             - invalid_credentials
+            - forbidden
         message:
           type: string
         details:

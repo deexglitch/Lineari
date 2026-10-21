@@ -168,7 +168,7 @@ export interface components {
         };
         Error: {
             /** @enum {string} */
-            code: "not_found" | "validation_error" | "duplicate_employee_number" | "duplicate_email" | "self_manager" | "circular_reporting_line" | "has_direct_reports" | "unauthorized" | "invalid_credentials";
+            code: "not_found" | "validation_error" | "duplicate_employee_number" | "duplicate_email" | "self_manager" | "circular_reporting_line" | "has_direct_reports" | "unauthorized" | "invalid_credentials" | "forbidden";
             message: string;
             details?: {
                 [key: string]: unknown;

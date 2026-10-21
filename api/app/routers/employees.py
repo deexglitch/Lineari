@@ -9,6 +9,8 @@ from fastapi import APIRouter, Depends, Query, Response
 from sqlalchemy import func, or_, select, update
 from sqlalchemy.orm import Session, aliased
 
+from ..auth.models import User
+from ..auth.permissions import require_admin
 from ..db import get_db
 from ..errors import AppError
 from ..gravatar import gravatar_url
@@ -159,7 +161,11 @@ def list_employees(
 
 # POST response endpoint
 @router.post("", response_model=EmployeeOut, status_code=201)
-def  create_employee(payload: EmployeeCreate, db: Annotated[Session, Depends(get_db)]):
+def create_employee(
+    payload: EmployeeCreate, 
+    db: Annotated[Session, Depends(get_db)],
+    _: Annotated[User, Depends(require_admin)]
+):
     if payload.manager_id is not None and db.get(Employee, payload.manager_id) is None:
         raise AppError(404, "not_found", "Manager not found, please try again")
 
@@ -185,6 +191,7 @@ def update_employee(
     employee_id: uuid.UUID,
     payload: EmployeeUpdate,
     db: Annotated[Session, Depends(get_db)],
+    _: Annotated[User, Depends(require_admin)]
 ):
     employee = db.get(Employee, employee_id)
     if employee is None:
@@ -236,6 +243,7 @@ def update_employee(
 def delete_employee(
     employee_id: uuid.UUID,
     db: Annotated[Session, Depends(get_db)],
+    _: Annotated[User, Depends(require_admin)],
     reassign_reports_to: uuid.UUID | None = None,
     reassign_to_none: bool = False,
 ):
@@ -307,4 +315,3 @@ def get_employee_ancestors(employee_id: uuid.UUID, db: Annotated[Session, Depend
         current_id = row[0].manager_id
     chain.reverse()
     return chain
- 
